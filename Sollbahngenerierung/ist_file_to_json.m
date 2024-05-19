@@ -1,6 +1,4 @@
-% function ist_file_to_json(filename_json,timestamp_ist, x_ist, y_ist, z_ist,tcp_velocity_ist,tcp_acceleration_ist,cpu_temperature_ist,q_ist,joint_states_ist)
 function  ist_file_to_json(filename_json,data_ist,col_names,i,split)
-
 %%    
     % Extrahiere die Daten aus dem Table 
     timestamp_ist = data_ist{:, 1};

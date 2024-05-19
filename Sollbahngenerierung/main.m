@@ -1,45 +1,71 @@
-%% Ist-Bahn Generierung
+%% Laden der Istbahn
 
 filename_excel = 'iso_diagonal_v1000_15x.xlsx';  
-filename_json = 'data_ist';   % geändert 
-% process_ist_file(filename_excel, filename_json);
+filename_json = 'data_ist';   % .jason wird später hinzugefügt 
 extract_ist_file(filename_excel);
 
-%% Soll-Bahn Generierung
+%%
 
-% Manuell einzugebende Daten
-home = [133 -645 1990];
-laenge = 630;
-num_points_per_segment = 100;  % Anzahl der Interpolationspunkte pro Teilbahn
-defined_velocity = 1000;
+    % Dateneingabe für Header
+    header_data = struct();
+    header_data.data_id = []; % leere Zellen werden später gefüllt
+    header_data.robot_name = "robot0";
+    header_data.robot_model = "abb_irb4400";
+    header_data.trajectory_type = "iso_path_A";
+    header_data.carthesian = "true";
+    header_data.path_solver = "abb_steuerung";
+    header_data.recording_date = "2024-05-16T16:30:00.241866";
+    header_data.real_robot = "true";
+    header_data.number_of_points_ist = [];
+    header_data.number_of_points_soll = [];
+    header_data.sample_frequency_ist = [];
+    header_data.source = "matlab";
 
-% Besteht Gesamtbahn aus mehreren Bahnen und soll zerlegt werden
-split = true; 
+    % Dateneingabe für SollbahN
+    home = [133 -645 1990];
+    laenge = 630;
+    num_points_per_segment = 100;  % Anzahl der Interpolationspunkte pro Teilbahn
+    defined_velocity = 1000;
+    
+    % Besteht Gesamtbahn aus mehreren Bahnen und soll zerlegt werden
+    split = true; 
+
+    % Welche Metriken sollen berechnet werden
+    dtw_johnen = true;
+    euclidean = true; 
+    frechet = false; 
+
+    % Plotten der DTW-Berechnung
+    pflag = false;
+    
+    % Key Points für ISO-Bahn A
+    if header_data.trajectory_type == "iso_path_A"
+        
+        position(1,:) = home;
+        position(2,:) = home + [0 -laenge 0];
+        position(3,:) = home + [laenge -laenge -laenge];
+        position(4,:) = home + [laenge 0 -laenge];
+        position(5,:) = home;
+    end
+    
+    % Anzahl der Key Points
+    num_key_points = size(position, 1);
+    num_sample_soll = num_points_per_segment*(num_key_points-1)+1;
 
 
-% Key Points für ISO-Bahn A
-position(1,:) = home;
-position(2,:) = home + [0 -laenge 0];
-position(3,:) = home + [laenge -laenge -laenge];
-position(4,:) = home + [laenge 0 -laenge];
-position(5,:) = home;
 
-% Anzahl der Key Points
-num_key_points = size(position, 1);
-num_sample_soll = num_points_per_segment*(num_key_points-1)+1;
+%% Generiere Sollbahn 
+% (später muss das nach Istbahn für automatische Generierung) 
 
-%% Muss später noch geändert werden...
-% Hier jetzt noch vor der Berechnung der Istbahn ....
-
-% Generate interpolated trajectory
-trajectory = interpolate_trajectory(num_points_per_segment,position);
+% Interpoliere Sollbahn
+trajectory_soll = interpolate_trajectory(num_points_per_segment,position);
 
 % Generiere json File für die interpolierte Sollbahn
 filename = 'data_soll.json';  
-generate_trajectory_json(trajectory, filename, defined_velocity);
+generate_trajectory_json(trajectory_soll, filename, defined_velocity);
 
 % Plotten der Sollbahn
-plot3(trajectory(:,1), trajectory(:,2), trajectory(:,3), '-o');
+plot3(trajectory_soll(:,1), trajectory_soll(:,2), trajectory_soll(:,3), '-o');
 grid on;
 xlabel('X');
 ylabel('Y');
@@ -48,103 +74,179 @@ title('Interpolated Trajectory');
 
 %% Abfrage ob die Bahn zerlegt werden soll
 
+% Finden und Anzahl der Ereignisse während der Messung
+index_events = find(~cellfun('isempty', events_ist));
+num_events_ist = length(index_events);
+
+
+% Zerlegung der gesamten Ist-Bahn in die einzelnen ISO-Bahnen
+index_teilbahnen = index_events(1:num_key_points-1:end); 
+wdh_teilbahn = length(index_teilbahnen);
+
+teilbahnen = cell(1,wdh_teilbahn);
+
+% Bahn soll zerlegt werden
 if split == true
-    index_events = find(~cellfun('isempty', events_ist));
-    num_events_ist = length(index_events);
-    
-
-    % Zerlegung der gesamten Ist-Bahn in die einzelnen ISO-Bahnen
-    index_teilbahnen = index_events(1:num_key_points-1:end); 
-    wdh_teilbahn = length(index_teilbahnen);
-
-    teilbahnen = cell(1,wdh_teilbahn);
 
     for i = 1:1:wdh_teilbahn
+
         if i < wdh_teilbahn
             teilbahnen{i} = data_ist(index_teilbahnen(i):index_teilbahnen(i+1)-1,:);
         else
             teilbahnen{i} = data_ist(index_teilbahnen(i):end,:);
         end
-        ist_file_to_json(filename_json,teilbahnen{i},col_names,i,split);
-        generate_header(trajectory_header_id, timestamp_ist,num_sample_soll, i,split);
 
+        ist_file_to_json(filename_json,teilbahnen{i},col_names,i,split);
+        generate_header(trajectory_header_id, header_data, timestamp_ist,num_sample_soll, i,split);
         file1 = 'data_ist'+string(i)+'.json';
         file2 = 'data_soll.json';
         combined_file = 'data_'+trajectory_header_id+'.json';
         merge_json_files(file1, file2, combined_file);
+
     end
 
-else
-    % % ist_file_to_json(filename_json,timestamp_ist, x_ist, y_ist, z_ist,tcp_velocity_ist,tcp_acceleration_ist,cpu_temperature_ist,q_ist,joint_states_ist);
+else% Bahn soll nicht zerlegt werden
+
     ist_file_to_json(filename_json,data_ist,col_names,i,split)
-    generate_header(trajectory_header_id, timestamp_ist,num_sample_soll, i,split);
+    generate_header(trajectory_header_id, header_data, timestamp_ist,num_sample_soll, i,split);
     file1 = 'data_ist.json';
     file2 = 'data_soll.json';
     combined_file = 'data_'+trajectory_header_id+'.json';
     merge_json_files(file1, file2, combined_file);
+
 end
-   
-%%
-% % Generate interpolated trajectory
-% trajectory = interpolate_trajectory(home, laenge, num_points_per_segment,position);
-% 
-% % Generate JSON file with the interpolated trajectory
-% filename = 'data_soll.json';  % Output JSON file name
-% generate_trajectory_json(trajectory, filename, defined_velocity);
-% 
-% % Plotting the trajectory for visualization
-% plot3(trajectory(:,1), trajectory(:,2), trajectory(:,3), '-o');
-% grid on;
-% xlabel('X');
-% ylabel('Y');
-% zlabel('Z');
-% title('Interpolated Trajectory');
 
-%% Header - Eintragen
-% data_id = trajectory_header_id;
-% robot_name = "robot0";
-% robot_model = "abb_irb4400";
-% trajectory_type = "iso_path_A";
-% carthesian = "true";
-% path_solver = "abb_steuerung";
-% recording_date = "2024-05-16T16:01:00.241866";
-% real_robot = "true";
-% number_of_points_ist = size(timestamp_ist,1);
-% number_of_points_soll = num_sample_soll;
-% sample_frequency_ist = length(timestamp_ist)/(timestamp_ist(end)-timestamp_ist(1)); % geändert 
-% source = "matlab";
+%% Vorbereitungen für Anwendung der Verfahren
 
-%% Header Generierung
+if split == false
 
-% header_data = struct(...
-%     'data_id', data_id, ...
-%     'robot_name', robot_name, ...
-%     'robot_model', robot_model, ...
-%     'trajectory_type', trajectory_type, ...
-%     'carthesian', carthesian, ...
-%     'path_solver', path_solver, ...
-%     'recording_date', recording_date, ...
-%     'real_robot', real_robot, ...
-%     'number_of_points_ist', number_of_points_ist, ...
-%     'number_of_points_soll', number_of_points_soll, ...
-%     'sample_frequency_ist', sample_frequency_ist, ...
-%     'source', source);
-% 
-% % Converter estrutura para JSON
-% jsonStr = jsonencode(header_data);
-% 
-% % Escrever JSON em arquivo
-% fid = fopen('header_'+trajectory_header_id+'.json', 'w');
-% if fid == -1
-%     error('Cannot create JSON file');
+    % Sollbahn vervielfachen
+    trajectory_soll = repmat(trajectory_soll(1:end-1,:), wdh_teilbahn, 1);
+    trajectory_ist = [x_ist y_ist z_ist];
+
+else
+    % String in Char umwandeln
+    trajectory_header_id = char(trajectory_header_id);
+    % Header ID wieder in Anfangszustand
+    if wdh_teilbahn < 10
+        trajectory_header_id = trajectory_header_id(1:end-1);
+    else
+        trajectory_header_id = trajectory_header_id(1:end-2);
+    end
+
+end
+
+%% Berechnung Selective Interpolation DTW (Johnen)
+
+if dtw_johnen == true
+
+    
+    if split == false
+
+         % Berechnung DTW Johnen
+        [distances_selintdtw, maxDistance_selintdtw, avDistance_selintdtw,...
+            accdist_selintdtw, X_selintdtw, Y_selintdtw, path_selintdtw, ix, iy]...
+            = fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
+        % Generiere Metrics-Datei
+        generate_metric_johnen(trajectory_header_id,maxDistance_selintdtw, avDistance_selintdtw, ...
+        distances_selintdtw,X_selintdtw,Y_selintdtw,accdist_selintdtw,path_selintdtw,i,split);
+    
+    else 
+        
+        for i = 1:1:wdh_teilbahn
+            trajectory_ist_table = teilbahnen{i}(:, 2:4);
+            trajectory_ist = table2array(trajectory_ist_table);
+
+            % Berechnung DTW Johnen
+            [distances_selintdtw, maxDistance_selintdtw, avDistance_selintdtw,...
+                accdist_selintdtw, X_selintdtw, Y_selintdtw, path_selintdtw, ix, iy]...
+                = fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
+            % Generiere Metrics Datei
+            generate_metric_johnen(trajectory_header_id,maxDistance_selintdtw, avDistance_selintdtw, ...
+            distances_selintdtw,X_selintdtw,Y_selintdtw,accdist_selintdtw,path_selintdtw,i,split);
+        end
+
+    end
+    
+
+end
+
+%% Dateneingabe für Metrics
+
+if euclidean == true
+
+    if split == false
+    
+        [eucl_intepol_soll,eucl_distances,eucl_t] = distance2curve(trajectory_soll,trajectory_ist,'linear');
+        generate_metric_euclidean(eucl_distances,trajectory_header_id,i,split);
+    
+    else 
+
+        for i= 1:1:wdh_teilbahn
+    
+            trajectory_ist_table = teilbahnen{i}(:, 2:4);
+            trajectory_ist = table2array(trajectory_ist_table);
+    
+            [eucl_intepol_soll,eucl_distances,eucl_t] = distance2curve(trajectory_soll,trajectory_ist,'linear');
+            generate_metric_euclidean(eucl_distances,trajectory_header_id,i,split);
+    
+        end    
+    end
+end
+
+
+
+
+%% Plots
+
+% if pflag == true
+%     figure('Name','Euklidischer Abstand - Zuordnung der Bahnpunkte','NumberTitle','off');
+%     hold on
+%     grid on
+%     box on
+%     plot3(trajectory_soll(:,1),trajectory_soll(:,2),trajectory_soll(:,3),'-ko','LineWidth',2)
+%     plot3(trajectory_ist(:,1),trajectory_ist(:,2),trajectory_ist(:,3), 'LineWidth',2,'Color','blue')
+%     line([trajectory_ist(:,1),xy(:,1)]',[trajectory_ist(:,2),xy(:,2)]',[trajectory_ist(:,3),xy(:,3)]','color',"red")
+%     legend({'Sollbahn','Istbahn','Abweichung'},'Location','northeast',"FontWeight", "bold")
+%     xlabel("x [mm]","FontWeight","bold")
+%     ylabel("y [mm]","FontWeight","bold")
+%     zlabel("z [mm]","FontWeight","bold")
+%     hold off
 % end
-% fwrite(fid, jsonStr, 'char');
-% fclose(fid);
 
-%% Kombination JSON-Dateien
+% % 2D Visualisierung der akkumulierten Kosten samt Mapping 
+%     figure('Name','SelectiveInterpolationDTW - Kostenkarte und optimaler Pfad','NumberTitle','off');
+%     hold on
+%     % main=subplot('Position',[0.19 0.19 0.67 0.79]);           
+%     imagesc(accdist_selintdtw)
+%     colormap("turbo"); % colormap("turbo");
+%     colorb = colorbar;
+%     colorb.Label.String = 'Akkumulierte Kosten';
+%     plot(iy, ix,"-w","LineWidth",1)
+%     xlabel('Pfad Y [Index]');
+%     ylabel('Pfad X [Index]');
+%     axis([min(iy) max(iy) 1 max(ix)]);
+%     set(gca,'FontSize',10,'YDir', 'normal');
 % 
-% file1 = 'data_ist.json';
-% file2 = 'data_soll.json';
-% combined_file = 'data_'+trajectory_header_id+'.json';
-% % combined_file = 'data.json';
-% merge_json_files(file1, file2, combined_file);
+% % Plot der beiden Bahnen und Zuordnung
+%     figure('Name','SelectiveInterpolationDTW - Zuordnung der Bahnpunkte','NumberTitle','off')
+%     hold on;
+%     grid on;
+%     box on;
+%     plot3(X_selintdtw(:,1),X_selintdtw(:,2),X_selintdtw(:,3),'-ko', 'LineWidth', 2);
+%     plot3(Y_selintdtw(:,1),Y_selintdtw(:,2),Y_selintdtw(:,3),'-bo','LineWidth', 2);
+%     for i = 1:1:length(X_selintdtw)
+%         line([Y_selintdtw(i,1),X_selintdtw(i,1)],[Y_selintdtw(i,2),X_selintdtw(i,2)],[Y_selintdtw(i,3),X_selintdtw(i,3)],'Color','red')
+%     end
+%     legend({'Sollbahn','Istbahn','Abweichung'},'Location','northeast',"FontWeight", "bold")
+%     xlabel("x [mm]","FontWeight","bold")
+%     ylabel("y [mm]","FontWeight","bold")
+%     zlabel("z [mm]","FontWeight","bold")
+% % Plot der längsten Distanz
+%     [~,j] = max(distances_selintdtw);
+%     line([Y_selintdtw(j,1),X_selintdtw(j,1)],[Y_selintdtw(j,2),X_selintdtw(j,2)],[Y_selintdtw(j,3),X_selintdtw(j,3)],'color','red','linewidth',3)
+
+
+
+
+

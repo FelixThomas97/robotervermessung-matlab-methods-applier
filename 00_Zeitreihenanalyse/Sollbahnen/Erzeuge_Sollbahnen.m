@@ -1,23 +1,23 @@
 %% Berechnung von Soll-Bahnen für den Bahnvergleich
 
-clear; 
+% clear; 
 
 % load Loop11isodiagonal.mat
-load Loop5500hzkreis.mat
+% load Loop5500hzkreis.mat
 % load Loop4500hzrandom.mat
 
-data_ist = table2array(Loop5500hzkreis);
+% data_ist = table2array(Loop5500hzkreis);
 
 x_ist = data_ist(:,1);
 y_ist = data_ist(:,2);
 z_ist = data_ist(:,3);
 
 % Timestamp entweder Spalte 7 oder 8
-t_ist = data_ist(:,8);
+% t_ist = data_ist(:,8);
 
 % Auswahl der gemessenen Bahn
-isodiagonal = 0;
-kreis = 1; 
+isodiagonal = 1;
+kreis = 0; 
 random = 0;
 
 % plot3(x_ist,y_ist,z_ist,'LineWidth',3,'Color','red');
@@ -28,7 +28,8 @@ random = 0;
 if isodiagonal
     
 % Manuelle Eingabe der Positionen und Bahnlänge aus Rapid-Code.
-    home = [133 -645 1990];
+    % home = [133 -645 1990];
+    home = [0 0 0];
     laenge = 630;
     % anzahl_punkte = length(data_ist);
     anzahl_punkte = 300;
