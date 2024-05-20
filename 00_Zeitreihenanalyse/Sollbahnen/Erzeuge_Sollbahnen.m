@@ -2,11 +2,11 @@
 
 % clear; 
 
-% load Loop11isodiagonal.mat
+load Loop11isodiagonal.mat
 % load Loop5500hzkreis.mat
 % load Loop4500hzrandom.mat
 
-% data_ist = table2array(Loop5500hzkreis);
+data_ist = table2array(Loop11isodiagonal);
 
 x_ist = data_ist(:,1);
 y_ist = data_ist(:,2);
@@ -107,7 +107,7 @@ if isodiagonal
 
     bahn_ist = bahn_ist(~any(isnan(bahn_ist),2),:);
 
-    for i = 1:1:length(bahn_soll)-1
+    for i = 1:1:length(bahn_soll-1)
         if bahn_soll(end-i,1) < bahn_ist(end,1)
             bahn_soll(end-i,:) = NaN;
         else

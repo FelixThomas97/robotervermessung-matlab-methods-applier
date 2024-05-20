@@ -14,7 +14,7 @@ function generate_header(trajectory_header_id, header_data, timestamp_ist,num_sa
     
     % json in Datei schreiben
     if split == true
-        fid = fopen('header_'+trajectory_header_id+string(i)+'.json', 'w');
+        fid = fopen('header_'+trajectory_header_id+'.json', 'w');
     else
         fid = fopen('header_'+trajectory_header_id+'.json', 'w');
     end

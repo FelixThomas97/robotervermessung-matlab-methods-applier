@@ -1,41 +1,47 @@
-%% Laden der Istbahn
+%% Laden der Daten
+
+%%%%%%%%%%%%%%%%%%%%%% Bereits hinzugefügte Daten %%%%%%%%%%%%%%%%%%%%%%%%%
+% 'iso_diagonal_v1000_15x.xlsx' ---> robot01716221276i
 
 filename_excel = 'iso_diagonal_v1000_15x.xlsx';  
 filename_json = 'data_ist';   % .jason wird später hinzugefügt 
 extract_ist_file(filename_excel);
 
-%%
+%% Dateneingabe
 
     % Dateneingabe für Header
     header_data = struct();
-    header_data.data_id = []; % leere Zellen werden später gefüllt
+    header_data.data_id = [];                   % leere Zellen werden später gefüllt
     header_data.robot_name = "robot0";
     header_data.robot_model = "abb_irb4400";
     header_data.trajectory_type = "iso_path_A";
     header_data.carthesian = "true";
     header_data.path_solver = "abb_steuerung";
-    header_data.recording_date = "2024-05-16T16:30:00.241866";
+    header_data.recording_date = "2024-05-16T16:32:00.241866";
     header_data.real_robot = "true";
-    header_data.number_of_points_ist = [];
-    header_data.number_of_points_soll = [];
-    header_data.sample_frequency_ist = [];
+    header_data.number_of_points_ist = [];      % leere Zellen werden später gefüllt
+    header_data.number_of_points_soll = [];     % leere Zellen werden später gefüllt
+    header_data.sample_frequency_ist = [];      % leere Zellen werden später gefüllt
     header_data.source = "matlab";
 
-    % Dateneingabe für SollbahN
+    % Dateneingabe für Sollbahn
     home = [133 -645 1990];
     laenge = 630;
     num_points_per_segment = 100;  % Anzahl der Interpolationspunkte pro Teilbahn
     defined_velocity = 1000;
     
     % Besteht Gesamtbahn aus mehreren Bahnen und soll zerlegt werden
-    split = true; 
+    split = false; 
 
     % Welche Metriken sollen berechnet werden
     dtw_johnen = true;
     euclidean = true; 
     frechet = false; 
 
-    % Plotten der DTW-Berechnung
+    % Automatisch in Datenbank eingtragen
+    mongoDB = false;
+
+    % Plotten der Ergebnisse 
     pflag = false;
     
     % Key Points für ISO-Bahn A
@@ -46,13 +52,12 @@ extract_ist_file(filename_excel);
         position(3,:) = home + [laenge -laenge -laenge];
         position(4,:) = home + [laenge 0 -laenge];
         position(5,:) = home;
+
     end
     
     % Anzahl der Key Points
     num_key_points = size(position, 1);
     num_sample_soll = num_points_per_segment*(num_key_points-1)+1;
-
-
 
 %% Generiere Sollbahn 
 % (später muss das nach Istbahn für automatische Generierung) 
@@ -105,10 +110,10 @@ if split == true
 
     end
 
-else% Bahn soll nicht zerlegt werden
+else % Bahn soll nicht zerlegt werden
 
     ist_file_to_json(filename_json,data_ist,col_names,i,split)
-    generate_header(trajectory_header_id, header_data, timestamp_ist,num_sample_soll, i,split);
+    generate_header(trajectory_header_id, header_data, timestamp_ist, num_sample_soll, i,split);
     file1 = 'data_ist.json';
     file2 = 'data_soll.json';
     combined_file = 'data_'+trajectory_header_id+'.json';
@@ -140,7 +145,6 @@ end
 
 if dtw_johnen == true
 
-    
     if split == false
 
          % Berechnung DTW Johnen
@@ -149,29 +153,28 @@ if dtw_johnen == true
             = fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
         % Generiere Metrics-Datei
         generate_metric_johnen(trajectory_header_id,maxDistance_selintdtw, avDistance_selintdtw, ...
-        distances_selintdtw,X_selintdtw,Y_selintdtw,accdist_selintdtw,path_selintdtw,i,split);
+            distances_selintdtw,X_selintdtw,Y_selintdtw,accdist_selintdtw,path_selintdtw,i,split);
     
     else 
         
         for i = 1:1:wdh_teilbahn
+
             trajectory_ist_table = teilbahnen{i}(:, 2:4);
             trajectory_ist = table2array(trajectory_ist_table);
 
             % Berechnung DTW Johnen
-            [distances_selintdtw, maxDistance_selintdtw, avDistance_selintdtw,...
-                accdist_selintdtw, X_selintdtw, Y_selintdtw, path_selintdtw, ix, iy]...
-                = fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
+            [distances_selintdtw, maxDistance_selintdtw, avDistance_selintdtw, ...
+                accdist_selintdtw, X_selintdtw, Y_selintdtw, path_selintdtw, ix, iy] = ...
+                fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
             % Generiere Metrics Datei
             generate_metric_johnen(trajectory_header_id,maxDistance_selintdtw, avDistance_selintdtw, ...
-            distances_selintdtw,X_selintdtw,Y_selintdtw,accdist_selintdtw,path_selintdtw,i,split);
+                distances_selintdtw,X_selintdtw,Y_selintdtw,accdist_selintdtw,path_selintdtw,i,split);
+
         end
-
     end
-    
-
 end
 
-%% Dateneingabe für Metrics
+%% Berechnung der Euklidschen Distanz 
 
 if euclidean == true
 
@@ -194,6 +197,62 @@ if euclidean == true
     end
 end
 
+%% Eintragen in Datenbank 
+
+if mongoDB == true
+
+    % Verbindung mit MongoDB
+    connectionString = 'mongodb+srv://felixthomas:felixthomas@cluster0.su3gj7l.mongodb.net/';
+    conn = mongoc(connectionString, 'robotervermessung');
+    
+    % Check Verbindung
+    if isopen(conn)
+        disp('Verbindung erfolgreich hergestellt');
+    else
+        disp('Verbindung fehlgeschlagen');
+    end
+
+    if split == true
+    
+        for i = 1:1:wdh_teilbahn
+    
+            filename = 'header_'+trajectory_header_id+string(i)+'.json';
+            jsonfile_header = fileread(filename);
+            insert(conn,'header',jsonfile_header)
+    
+            filename = 'data_'+trajectory_header_id+string(i)+'.json';
+            jsonfile_data = fileread(filename);
+            insert(conn,'data',jsonfile_data);
+    
+            filename = 'metrics_johnen_'+trajectory_header_id+string(i)+'.json';
+            jsonfile_metrics_johnen = fileread(filename);
+            insert(conn,'metrics',jsonfile_metrics_johnen);
+    
+            filename = 'metrics_euclidean_'+trajectory_header_id+string(i)+'.json';
+            jsonfile_metrics_euclidean = fileread(filename);
+            insert(conn,'metrics',jsonfile_metrics_euclidean);
+        end
+    
+    else
+            filename = 'header_'+trajectory_header_id+'.json';
+            jsonfile_header = fileread(filename);
+            insert(conn,'header',jsonfile_header);
+    
+            filename = 'data_'+trajectory_header_id+'.json';
+            jsonfile_data = fileread(filename);
+            insert(conn,'data',jsonfile_data);
+    
+            filename = 'metrics_johnen_'+trajectory_header_id+'.json';
+            jsonfile_metrics_johnen = fileread(filename);
+            insert(conn,'metrics',jsonfile_metrics_johnen);
+    
+            filename = 'metrics_euclidean_'+trajectory_header_id+'.json';
+            jsonfile_metrics_euclidean = fileread(filename);
+            insert(conn,'metrics',jsonfile_metrics_euclidean)
+              
+    
+    end
+end
 
 
 
