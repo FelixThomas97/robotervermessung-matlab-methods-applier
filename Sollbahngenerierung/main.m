@@ -1,9 +1,9 @@
 %% Laden der Daten
 
 %%%%%%%%%%%%%%%%%%%%%% Bereits hinzugefügte Daten %%%%%%%%%%%%%%%%%%%%%%%%%
-% 'iso_diagonal_v1000_15x.xlsx' ---> robot01716221276i
+% 'iso_diagonal_v1000_15x.xlsx' ---> robot01716221276i & robot01716233440 (ohne metriken da zu groß)
 
-filename_excel = 'iso_diagonal_v1000_15x.xlsx';  
+filename_excel = 'iso_diagonal_v2000_15x.xlsx';  
 filename_json = 'data_ist';   % .jason wird später hinzugefügt 
 extract_ist_file(filename_excel);
 
@@ -17,7 +17,7 @@ extract_ist_file(filename_excel);
     header_data.trajectory_type = "iso_path_A";
     header_data.carthesian = "true";
     header_data.path_solver = "abb_steuerung";
-    header_data.recording_date = "2024-05-16T16:32:00.241866";
+    header_data.recording_date = "2024-05-16T16:33:00.241866";
     header_data.real_robot = "true";
     header_data.number_of_points_ist = [];      % leere Zellen werden später gefüllt
     header_data.number_of_points_soll = [];     % leere Zellen werden später gefüllt
@@ -31,7 +31,7 @@ extract_ist_file(filename_excel);
     defined_velocity = 1000;
     
     % Besteht Gesamtbahn aus mehreren Bahnen und soll zerlegt werden
-    split = false; 
+    split = true; 
 
     % Welche Metriken sollen berechnet werden
     dtw_johnen = true;
@@ -42,7 +42,7 @@ extract_ist_file(filename_excel);
     mongoDB = false;
 
     % Plotten der Ergebnisse 
-    pflag = false;
+    pflag = true;
     
     % Key Points für ISO-Bahn A
     if header_data.trajectory_type == "iso_path_A"
