@@ -1,10 +1,11 @@
 %% Laden der Daten
 
 %%%%%%%%%%%%%%%%%%%%%% Bereits hinzugefügte Daten %%%%%%%%%%%%%%%%%%%%%%%%%
-% 'iso_diagonal_v1000_15x.xlsx' ---> robot01716221276i & robot01716233440 (ohne metriken da zu groß)
+% 'iso_diagonal_v1000_15x.xlsx' ---> robot01716299489i
+% 'iso_diagonal_v2000_15x.xlsx' ---> robot01716299123i
 
-filename_excel = 'iso_diagonal_v2000_15x.xlsx';  
-filename_json = 'data_ist';   % .jason wird später hinzugefügt 
+filename_excel = 'iso_diagonal_v1000_15x.xlsx';  
+filename_json = 'data_ist';   % .json wird später hinzugefügt 
 extract_ist_file(filename_excel);
 
 %% Dateneingabe
@@ -17,7 +18,7 @@ extract_ist_file(filename_excel);
     header_data.trajectory_type = "iso_path_A";
     header_data.carthesian = "true";
     header_data.path_solver = "abb_steuerung";
-    header_data.recording_date = "2024-05-16T16:33:00.241866";
+    header_data.recording_date = "2024-05-16T16:35:00.241866";
     header_data.real_robot = "true";
     header_data.number_of_points_ist = [];      % leere Zellen werden später gefüllt
     header_data.number_of_points_soll = [];     % leere Zellen werden später gefüllt
@@ -36,13 +37,14 @@ extract_ist_file(filename_excel);
     % Welche Metriken sollen berechnet werden
     dtw_johnen = true;
     euclidean = true; 
-    frechet = false; 
+    frechet = false;
+    lcss = false;
 
     % Automatisch in Datenbank eingtragen
     mongoDB = false;
 
     % Plotten der Ergebnisse 
-    pflag = true;
+    pflag = false;
     
     % Key Points für ISO-Bahn A
     if header_data.trajectory_type == "iso_path_A"
@@ -152,7 +154,7 @@ if dtw_johnen == true
             accdist_selintdtw, X_selintdtw, Y_selintdtw, path_selintdtw, ix, iy]...
             = fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
         % Generiere Metrics-Datei
-        generate_metric_johnen(trajectory_header_id,maxDistance_selintdtw, avDistance_selintdtw, ...
+        generate_dtwjohnen_json(trajectory_header_id,maxDistance_selintdtw, avDistance_selintdtw, ...
             distances_selintdtw,X_selintdtw,Y_selintdtw,accdist_selintdtw,path_selintdtw,i,split);
     
     else 
@@ -167,7 +169,7 @@ if dtw_johnen == true
                 accdist_selintdtw, X_selintdtw, Y_selintdtw, path_selintdtw, ix, iy] = ...
                 fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
             % Generiere Metrics Datei
-            generate_metric_johnen(trajectory_header_id,maxDistance_selintdtw, avDistance_selintdtw, ...
+            generate_dtwjohnen_json(trajectory_header_id,maxDistance_selintdtw, avDistance_selintdtw, ...
                 distances_selintdtw,X_selintdtw,Y_selintdtw,accdist_selintdtw,path_selintdtw,i,split);
 
         end
@@ -180,8 +182,8 @@ if euclidean == true
 
     if split == false
     
-        [eucl_intepol_soll,eucl_distances,eucl_t] = distance2curve(trajectory_soll,trajectory_ist,'linear');
-        generate_metric_euclidean(eucl_distances,trajectory_header_id,i,split);
+        [eucl_intepolation,eucl_distances,eucl_t] = distance2curve(trajectory_ist,trajectory_soll,'linear');
+        generate_euclidean_json(trajectory_soll, eucl_intepolation, eucl_distances,trajectory_header_id,i,split);
     
     else 
 
@@ -190,14 +192,16 @@ if euclidean == true
             trajectory_ist_table = teilbahnen{i}(:, 2:4);
             trajectory_ist = table2array(trajectory_ist_table);
     
-            [eucl_intepol_soll,eucl_distances,eucl_t] = distance2curve(trajectory_soll,trajectory_ist,'linear');
-            generate_metric_euclidean(eucl_distances,trajectory_header_id,i,split);
+            [eucl_intepolation,eucl_distances,eucl_t] = distance2curve(trajectory_ist,trajectory_soll,'linear');
+            generate_euclidean_json(trajectory_soll, eucl_intepolation, eucl_distances,trajectory_header_id,i,split);
     
         end    
     end
 end
 
 %% Eintragen in Datenbank 
+
+trajectory_header_id = string(trajectory_header_id);
 
 if mongoDB == true
 
@@ -258,54 +262,89 @@ end
 
 %% Plots
 
-% if pflag == true
-%     figure('Name','Euklidischer Abstand - Zuordnung der Bahnpunkte','NumberTitle','off');
-%     hold on
-%     grid on
-%     box on
-%     plot3(trajectory_soll(:,1),trajectory_soll(:,2),trajectory_soll(:,3),'-ko','LineWidth',2)
-%     plot3(trajectory_ist(:,1),trajectory_ist(:,2),trajectory_ist(:,3), 'LineWidth',2,'Color','blue')
-%     line([trajectory_ist(:,1),xy(:,1)]',[trajectory_ist(:,2),xy(:,2)]',[trajectory_ist(:,3),xy(:,3)]','color',"red")
-%     legend({'Sollbahn','Istbahn','Abweichung'},'Location','northeast',"FontWeight", "bold")
-%     xlabel("x [mm]","FontWeight","bold")
-%     ylabel("y [mm]","FontWeight","bold")
-%     zlabel("z [mm]","FontWeight","bold")
-%     hold off
-% end
+% pflag = true;
 
-% % 2D Visualisierung der akkumulierten Kosten samt Mapping 
-%     figure('Name','SelectiveInterpolationDTW - Kostenkarte und optimaler Pfad','NumberTitle','off');
-%     hold on
-%     % main=subplot('Position',[0.19 0.19 0.67 0.79]);           
-%     imagesc(accdist_selintdtw)
-%     colormap("turbo"); % colormap("turbo");
-%     colorb = colorbar;
-%     colorb.Label.String = 'Akkumulierte Kosten';
-%     plot(iy, ix,"-w","LineWidth",1)
-%     xlabel('Pfad Y [Index]');
-%     ylabel('Pfad X [Index]');
-%     axis([min(iy) max(iy) 1 max(ix)]);
-%     set(gca,'FontSize',10,'YDir', 'normal');
+if pflag == true
+    figure('Name','Euklidischer Abstand - Zuordnung der Bahnpunkte','NumberTitle','off');
+    hold on
+    grid on
+    box on
+    plot3(trajectory_soll(:,1),trajectory_soll(:,2),trajectory_soll(:,3),'-ko','LineWidth',2)
+    plot3(trajectory_ist(:,1),trajectory_ist(:,2),trajectory_ist(:,3), 'LineWidth',2,'Color','blue')
+    line([trajectory_soll(:,1),eucl_intepolation(:,1)]',[trajectory_soll(:,2),eucl_intepolation(:,2)]',[trajectory_soll(:,3),eucl_intepolation(:,3)]','color',"red")
+    legend({'Sollbahn','Istbahn','Abweichung'},'Location','northeast',"FontWeight", "bold")
+    xlabel("x [mm]","FontWeight","bold")
+    ylabel("y [mm]","FontWeight","bold")
+    zlabel("z [mm]","FontWeight","bold")
+    hold off
+end
+
+% 2D Visualisierung der akkumulierten Kosten samt Mapping 
+    figure('Name','SelectiveInterpolationDTW - Kostenkarte und optimaler Pfad','NumberTitle','off');
+    hold on
+    % main=subplot('Position',[0.19 0.19 0.67 0.79]);           
+    imagesc(accdist_selintdtw)
+    colormap("turbo"); % colormap("turbo");
+    colorb = colorbar;
+    colorb.Label.String = 'Akkumulierte Kosten';
+    plot(iy, ix,"-w","LineWidth",1)
+    xlabel('Pfad Y [Index]');
+    ylabel('Pfad X [Index]');
+    axis([min(iy) max(iy) 1 max(ix)]);
+    set(gca,'FontSize',10,'YDir', 'normal');
+
+% Plot der beiden Bahnen und Zuordnung
+    figure('Name','SelectiveInterpolationDTW - Zuordnung der Bahnpunkte','NumberTitle','off')
+    hold on;
+    grid on;
+    box on;
+    plot3(X_selintdtw(:,1),X_selintdtw(:,2),X_selintdtw(:,3),'-ko', 'LineWidth', 2);
+    plot3(Y_selintdtw(:,1),Y_selintdtw(:,2),Y_selintdtw(:,3),'-bo','LineWidth', 2);
+    for i = 1:1:length(X_selintdtw)
+        line([Y_selintdtw(i,1),X_selintdtw(i,1)],[Y_selintdtw(i,2),X_selintdtw(i,2)],[Y_selintdtw(i,3),X_selintdtw(i,3)],'Color','red')
+    end
+    legend({'Sollbahn','Istbahn','Abweichung'},'Location','northeast',"FontWeight", "bold")
+    xlabel("x [mm]","FontWeight","bold")
+    ylabel("y [mm]","FontWeight","bold")
+    zlabel("z [mm]","FontWeight","bold")
+% Plot der längsten Distanz
+    [~,j] = max(distances_selintdtw);
+    line([Y_selintdtw(j,1),X_selintdtw(j,1)],[Y_selintdtw(j,2),X_selintdtw(j,2)],[Y_selintdtw(j,3),X_selintdtw(j,3)],'color','red','linewidth',3)
+
+
+%% testtest
+% 
+% clear
+% 
+% filename = 'metrics_johnen_robot0171624288811.json';
+% 
+% jsonfile = fileread(filename);
+% 
+% struct = jsondecode(jsonfile);
+% 
+% a = struct.dtw_distances*1000;
+% 
+% X = struct.dtw_X;
+% Y = struct.dtw_Y;
 % 
 % % Plot der beiden Bahnen und Zuordnung
 %     figure('Name','SelectiveInterpolationDTW - Zuordnung der Bahnpunkte','NumberTitle','off')
 %     hold on;
 %     grid on;
 %     box on;
-%     plot3(X_selintdtw(:,1),X_selintdtw(:,2),X_selintdtw(:,3),'-ko', 'LineWidth', 2);
-%     plot3(Y_selintdtw(:,1),Y_selintdtw(:,2),Y_selintdtw(:,3),'-bo','LineWidth', 2);
-%     for i = 1:1:length(X_selintdtw)
-%         line([Y_selintdtw(i,1),X_selintdtw(i,1)],[Y_selintdtw(i,2),X_selintdtw(i,2)],[Y_selintdtw(i,3),X_selintdtw(i,3)],'Color','red')
+%     plot3(X(:,1),X(:,2),X(:,3),'-ko', 'LineWidth', 2);
+%     plot3(Y(:,1),Y(:,2),Y(:,3),'-bo','LineWidth', 2);
+%     for i = 1:1:length(X)
+%         line([Y(i,1),X(i,1)],[Y(i,2),X(i,2)],[Y(i,3),X(i,3)],'Color','red')
 %     end
 %     legend({'Sollbahn','Istbahn','Abweichung'},'Location','northeast',"FontWeight", "bold")
 %     xlabel("x [mm]","FontWeight","bold")
 %     ylabel("y [mm]","FontWeight","bold")
 %     zlabel("z [mm]","FontWeight","bold")
 % % Plot der längsten Distanz
-%     [~,j] = max(distances_selintdtw);
-%     line([Y_selintdtw(j,1),X_selintdtw(j,1)],[Y_selintdtw(j,2),X_selintdtw(j,2)],[Y_selintdtw(j,3),X_selintdtw(j,3)],'color','red','linewidth',3)
-
-
-
-
-
+%     [~,j] = max(a);
+%     line([Y(j,1),X(j,1)],[Y(j,2),X(j,2)],[Y(j,3),X(j,3)],'color','red','linewidth', 5)
+% 
+% 
+% 
+% 

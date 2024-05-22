@@ -18,7 +18,6 @@ collection = 'data';
 
 searchID = 'robot01710922643432725';  
 
-
 % Query definieren
 query = ['{"trajectory_header_id": "', searchID, '"}'];
 
@@ -44,15 +43,30 @@ close(conn);
 end
 
 
-%% Test Export
+%% Export eine Datei
 
-% filename = 'header_robot017162160221616.json';
-% 
-% jsonfile = fileread("header_robot017162160221616.json");
-% 
-% n = insert(conn,'header',jsonfile)
+trajectory_header_id = "robot0171629638116";
+
+
+    filename = 'header_'+trajectory_header_id+'.json';
+    jsonfile_header = fileread(filename);
+    insert(conn,'header',jsonfile_header);
+
+    filename = 'data_'+trajectory_header_id+'.json';
+    jsonfile_data = fileread(filename);
+    insert(conn,'data',jsonfile_data);
+
+    filename = 'metrics_johnen_'+trajectory_header_id+'.json';
+    jsonfile_metrics_johnen = fileread(filename);
+    insert(conn,'metrics',jsonfile_metrics_johnen);
+
+    filename = 'metrics_euclidean_'+trajectory_header_id+'.json';
+    jsonfile_metrics_euclidean = fileread(filename);
+    insert(conn,'metrics',jsonfile_metrics_euclidean)
+
 
 % robot017162195001
+%% Export alle Dateien
 trajectory_header_id = "robot01716221276";
 
 wdh_teilbahn = 16;
@@ -102,6 +116,10 @@ else
 end
 
 %% Etwas löschen 
-    % searchID = 'robot017162212761';
-    % n = remove(conn,"header",['{"trajectory_header_id": "', searchID, '"}'])
+    searchID = 'robot0171629638116';
+    n = remove(conn,"header",['{"data_id": "', searchID, '"}'])
+    n = remove(conn,"data",['{"trajectory_header_id": "', searchID, '"}'])
+    n = remove(conn,"metrics",['{"trajectory_header_id": "', searchID, '"}'])
 
+
+% {recording_date: "2024-05-16T16:33:00.241866"}

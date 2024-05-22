@@ -1,4 +1,4 @@
-function generate_trajectory_json(interpolated_trajectory, filename, defined_velocity)
+function generate_trajectory_struct(interpolated_trajectory, defined_velocity)
     % Number of interpolated points
     num_interpolated_points = size(interpolated_trajectory, 1);
     num_sample_soll = num_interpolated_points;
@@ -23,17 +23,5 @@ function generate_trajectory_json(interpolated_trajectory, filename, defined_vel
     data.tcp_velocity_soll = defined_velocity;
     data.joint_state_soll = [];
     
-    % Convert the structure to a JSON string
-    jsonString = jsonencode(data);
-
-    assignin('base', 'num_sample_soll', num_sample_soll);
-
-    % Write the JSON string to a file
-    fid = fopen(filename, 'w');
-    if fid == -1
-        error('Cannot create JSON file');
-    end
-    fwrite(fid, jsonString, 'char');
-    fclose(fid);
-
+    assignin("base","data_soll",data)
 end
