@@ -2,6 +2,7 @@
 clear;
 %%%%%%%%%%%%%%%%%%%%%% Bereits hinzugefügte Daten %%%%%%%%%%%%%%%%%%%%%%%%%
 % 'iso_diagonal_v1000_15x.xlsx' ---> robot01716299489i
+% 'iso_diagonal_v1000_15x.xlsx' ---> robot01716475585i mit allen Metriken
 % 'iso_diagonal_v2000_15x.xlsx' ---> robot01716299123i
 
 filename_excel = 'iso_diagonal_v1000_15x.xlsx';  
@@ -32,13 +33,15 @@ extract_ist_file(filename_excel);
     defined_velocity = 1000;
     
     % Besteht Gesamtbahn aus mehreren Bahnen und soll zerlegt werden
-    split = true; 
+    split = false; 
 
     % Welche Metriken sollen berechnet werden
+    euclidean = true;
+    dtw = true;
     dtw_johnen = true;
-    euclidean = true; 
-    frechet = false;
+    frechet = true;
     lcss = false;
+
 
     % Automatisch in Datenbank eingtragen
     mongoDB = false;
@@ -92,8 +95,8 @@ wdh_teilbahn = length(index_teilbahnen);
 
 teilbahnen = cell(1,wdh_teilbahn);
 
-% Bahn soll zerlegt werden
-if split == true
+
+if split == true % Bahn soll zerlegt werden
 
     struct_header = cell(1,wdh_teilbahn);
     struct_data = cell(1,wdh_teilbahn);
@@ -136,13 +139,6 @@ else % Bahn soll nicht zerlegt werden
         struct_data.(fields_soll{j}) = data_soll.(fields_soll{j});
     end
 
-    % ist_file_to_json(filename_json,data_ist,col_names,i,split)
-    % generate_header(trajectory_header_id, header_data, timestamp_ist, num_sample_soll, i,split);
-    % file1 = 'data_ist.json';
-    % file2 = 'data_soll.json';
-    % combined_file = 'data_'+trajectory_header_id+'.json';
-    % merge_json_files(file1, file2, combined_file);
-
 end
 
 %% Vorbereitungen für Anwendung der Verfahren
@@ -163,6 +159,65 @@ else
         trajectory_header_id = trajectory_header_id(1:end-2);
     end
 
+end
+
+%% Berechnung der Euklidschen Distanz 
+
+if euclidean == true
+
+    if split == false
+    
+        [eucl_intepolation,eucl_distances,eucl_t] = distance2curve(trajectory_ist,trajectory_soll,'linear');
+        generate_euclidean_struct(trajectory_soll, eucl_intepolation, eucl_distances,trajectory_header_id,i,split);
+
+        struct_euclidean = metrics_euclidean;
+    
+    else 
+
+        struct_euclidean = cell(1,wdh_teilbahn);
+
+        for i= 1:1:wdh_teilbahn
+    
+            trajectory_ist_table = teilbahnen{i}(:, 2:4);
+            trajectory_ist = table2array(trajectory_ist_table);
+    
+            [eucl_intepolation,eucl_distances,eucl_t] = distance2curve(trajectory_ist,trajectory_soll,'linear');
+            generate_euclidean_struct(trajectory_soll, eucl_intepolation, eucl_distances,trajectory_header_id,i,split);
+
+            struct_euclidean{i} = metrics_euclidean;
+    
+        end    
+    end
+end
+
+%% Berechnung der Standardvariante DTW
+
+if dtw == true
+
+    if split == false
+
+        [dtw_distances, dtw_max, dtw_av, dtw_accdist, dtw_X, dtw_Y, dtw_path, ix, iy, localdist] = ...
+        fkt_dtw3d(trajectory_soll, trajectory_ist, pflag);
+        generate_dtw_struct(trajectory_header_id, dtw_av, dtw_max, dtw_distances, dtw_accdist, dtw_path, dtw_X, dtw_Y,i,split);
+        
+        struct_dtw = metrics_dtw;
+
+    else
+
+        struct_dtw = cell(1,wdh_teilbahn);
+
+        for i =1:wdh_teilbahn
+
+            trajectory_ist_table = teilbahnen{i}(:, 2:4);
+            trajectory_ist = table2array(trajectory_ist_table);
+
+            [dtw_distances, dtw_max, dtw_av, dtw_accdist, dtw_X, dtw_Y, dtw_path, ix, iy, localdist] = ...
+            fkt_dtw3d(trajectory_soll, trajectory_ist, pflag);
+            generate_dtw_struct(trajectory_header_id, dtw_av, dtw_max, dtw_distances, dtw_accdist, dtw_path, dtw_X, dtw_Y,i,split);
+
+            struct_dtw{i} = metrics_dtw;
+        end
+    end
 end
 
 %% Berechnung Selective Interpolation DTW (Johnen)
@@ -203,38 +258,35 @@ if dtw_johnen == true
     end
 end
 
-%% Berechnung der Euklidschen Distanz 
+%% Berechnung der diskreten Frechet Distanz
 
-if euclidean == true
+if frechet == true
 
     if split == false
-    
-        [eucl_intepolation,eucl_distances,eucl_t] = distance2curve(trajectory_ist,trajectory_soll,'linear');
-        generate_euclidean_struct(trajectory_soll, eucl_intepolation, eucl_distances,trajectory_header_id,i,split);
 
-        struct_euclidean = metrics_euclidean;
-    
-    else 
+        fkt_discreteFrechet(trajectory_soll,trajectory_ist);
+        generate_frechet_struct(trajectory_header_id, frechet_av, frechet_dist, frechet_distances, frechet_matrix, frechet_path,i,split);
+        
+        struct_frechet = metrics_frechet;
 
-        struct_euclidean = cell(1,wdh_teilbahn);
+    else
 
-        for i= 1:1:wdh_teilbahn
-    
+        struct_frechet = cell(1,wdh_teilbahn);
+
+        for i =1:wdh_teilbahn
+
             trajectory_ist_table = teilbahnen{i}(:, 2:4);
             trajectory_ist = table2array(trajectory_ist_table);
-    
-            [eucl_intepolation,eucl_distances,eucl_t] = distance2curve(trajectory_ist,trajectory_soll,'linear');
-            generate_euclidean_struct(trajectory_soll, eucl_intepolation, eucl_distances,trajectory_header_id,i,split);
 
-            struct_euclidean{i} = metrics_euclidean;
-    
-        end    
+            fkt_discreteFrechet(trajectory_soll,trajectory_ist);
+            generate_frechet_struct(trajectory_header_id, frechet_av, frechet_dist, frechet_distances, frechet_matrix, frechet_path,i,split);
+
+            struct_frechet{i} = metrics_frechet;
+        end
     end
 end
 
 %% Eintragen in Datenbank 
-
-mongoDB = true;
 
 if mongoDB == true
 
@@ -254,20 +306,39 @@ if mongoDB == true
     if split == true
     
         for i = 1:1:wdh_teilbahn
-            
+
+            % Lösche die akkumulierte Kostenmatrix falls Datenmenge zu groß
+            cell_johnen = struct_johnen{i};
+            info = whos('cell_johnen');
+            info = info.bytes;
+            if info > 16000000 % maximale Größe bei MongoDB
+                struct_johnen{i} = rmfield(struct_johnen{i}, "dtw_accdist");
+            end
+
              % Upload in Datenbank
             insert(conn, 'header', struct_header{i});
             insert(conn, 'data', struct_data{i});
             insert(conn, 'metrics', struct_johnen{i});
             insert(conn, 'metrics', struct_euclidean{i});
+            insert(conn, 'metrics', struct_dtw{i});
+            insert(conn, 'metrics', struct_frechet{i});
         end
 
     else
+            % Lösche die akkumulierte Kostenmatrix falls Datenmenge zu groß
+            info = whos('struct_johnen');
+            info = info.bytes;
+            if info > 16000000 % maximale Größe bei MongoDB
+                struct_johnen = rmfield(struct_johnen, "dtw_accdist");
+            end
+
              % Upload in Datenbank
             insert(conn, 'header', struct_header);
             insert(conn, 'data', struct_data);
             insert(conn, 'metrics', struct_johnen);
-            insert(conn, 'metrics', struct_euclidean);   
+            insert(conn, 'metrics', struct_euclidean);
+            insert(conn, 'metrics', struct_dtw);
+            insert(conn, 'metrics', struct_frechet);
     end
 end
 
@@ -318,11 +389,13 @@ if pflag == true
     xlabel("x [mm]","FontWeight","bold")
     ylabel("y [mm]","FontWeight","bold")
     zlabel("z [mm]","FontWeight","bold")
+
 % Plot der längsten Distanz
     [~,j] = max(selintdtw_distances);
     line([selintdtw_Y(j,1),selintdtw_X(j,1)],[selintdtw_Y(j,2),selintdtw_X(j,2)],[selintdtw_Y(j,3),selintdtw_X(j,3)],'color','red','linewidth',3)
 
 end
+
 %% testtest
 % 
 % clear
@@ -359,3 +432,5 @@ end
 % 
 % 
 % 
+
+
