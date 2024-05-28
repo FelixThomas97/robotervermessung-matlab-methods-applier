@@ -1,12 +1,19 @@
+
+% Ist noch nicht feddich! --> main_v2 benutzen!
+
 %% Laden der Daten
 clear;
 %%%%%%%%%%%%%%%%%%%%%% Bereits hinzugefügte Daten %%%%%%%%%%%%%%%%%%%%%%%%%
 % 'iso_diagonal_v1000_15x.xlsx' ---> robot01716299489i
 % 'iso_diagonal_v2000_15x.xlsx' ---> robot01716299123i
 
-filename_excel = 'iso_diagonal_v1000_15x.xlsx';  
-filename_json = 'data_ist';   % .json wird später hinzugefügt 
+% filename_excel = 'iso_diagonal_v1000_15x.xlsx';  
+filename_excel = 'iso_various_v2000_xx.xlsx';
+filename_ist = 'data_ist';   % .json wird später hinzugefügt 
 extract_ist_file_v3(filename_excel);
+
+pflag = 0;
+split = 0;
 
 %% Dateneingabe
 
@@ -46,41 +53,115 @@ extract_ist_file_v3(filename_excel);
 
 
 %% 
-%%%%%%%% Variante 1 
 % Extrahieren der Codezeilen wo Ereignisse stattfinden
 pattern = '\d+$'; % sucht nach mehreren aufeinanderfolgenden Ziffern am Ende eines Strings
 matches = regexp(events_ist, pattern, 'match'); 
-
 emptyCells = cellfun('isempty', matches); % Findet leere Zellen
 matches(emptyCells) = {NaN}; % Füllt leere Zellen mit NaN
 
-% strings in double umwandeln
-rapid_lines = cellfun(@str2double, matches);
-rapid_start = rapid_lines(1);
+% strings in double umwandeln 
+events_ist_double = cellfun(@str2double, matches);
+events_ist_all = rmmissing(events_ist_double); 
+events_ist_double(isnan(events_ist_double)) = 0;
 
+% Indizierung und Anzahl der Keypoints bestimmen
+startpoint = events_ist_all(1);
+index_num_keypoints = find(events_ist_all ==startpoint)';
+num_keypoints = diff(find(events_ist_all ==startpoint))';
+num_keypoints(end+1) = diff(events_ist_all(index_num_keypoints(end)):events_ist_all(end));
 % Indizes aller Vorkommen des Startwerts finden
-index_teilbahnen = find(rapid_lines == rapid_start);
-wdh_teilbahn = length(index_teilbahnen);
-
-% leeres Cell-Array für die Teilbahnen erstellen 
-teilbahnen = cell(1,wdh_teilbahn);
+wdh_teilbahn = length(find(events_ist_double == startpoint));
 
 % Finden und Anzahl der Ereignisse während Aufzeichnung
 events_index = find(~cellfun('isempty', events_ist)); 
-num_events_ist = length(events_index);
+events_ist_num = length(events_index);
 
-rapid_lines_num = rmmissing(rapid_lines);
-indices = find(rapid_lines_num == rapid_lines_num(1));
+clear col_names emptyCells  filename_ist filename_excel matches pattern
+%%
 
 
-% Länge der Zwischenwerte berechnen
-if length(rapid_lines_num) > 1
-    lengths = diff(rapid_lines_num);
-else
-    lengths = []; % Falls der Startwert nur einmal vorkommt
+
+
+
+
+
+
+
+
+
+
+%%
+
+trajectory_ist = [data_ist(:,2) data_ist(:,3) data_ist(:,4)];
+positions_all = zeros(events_ist_num,3);
+
+% Alle Keypoints
+for i = 1:1:events_ist_num
+    positions_all(i,:) = trajectory_ist(events_index(i),:);
 end
 
-% disp(lengths);
+
+positions_soll = cell(1,wdh_teilbahn);
+last_index = 0;
+first_index = 1;
+
+for i = 1:wdh_teilbahn
+
+    % Sucht nach den Indizes der Keypoints für die einzelnen Sollbahnen
+    last_index = first_index + num_keypoints(i);
+    num_points = num_keypoints(i)+1;
+
+    index_keypoints = linspace(first_index,last_index,num_points);
+
+    first_index = last_index;
+
+    % Fülle Positionsarray mit den Keypoints der Sollbahnausschnitte
+    positions_soll{i} = positions_all(index_keypoints,:);  
+
+end
+
+teilbahnen_soll = cell(1,wdh_teilbahn);
+for i = 1:1:length(positions_soll)
+
+    % Interpoliere Sollbahn
+    trajectory_soll = interpolate_trajectory(num_points_per_segment,positions_soll{i});
+    teilbahnen_soll{i} = trajectory_soll;
+end
+
+
+%% Plots
+if pflag
+figure(1)
+plot3(trajectory_ist(:,1),trajectory_ist(:,2),trajectory_ist(:,3))
+figure(2)
+plot3(positions_all(:,1),positions_all(:,2),positions_all(:,3))
+hold on
+plot3(positions_all(1,1),positions_all(1,2),positions_all(1,3),'*r')
+figure(3)
+plot3(positions_all(1:8,1),positions_all(1:8,2),positions_all(1:8,3))
+hold on
+plot3(positions_all(8,1),positions_all(8,2),positions_all(8,3),'*r')
+end
+
+plot3(teilbahnen_soll{1}(:,1),teilbahnen_soll{1}(:,2),teilbahnen_soll{1}(:,3))
+%%
+
+% Um die Anzahl der Keypoints der Bahn herrauszufinden könnte man jetzt einfach
+%   die wdh_teilbahnen durch die Anzahl der rapid_lines2 teilen. Es muss aber 
+%   auch beachtet werden, dass nachdem die Bahn den Startpunkt erreicht hat, eine 
+%   andere Bahn abgefahren wird, wie z.b. bei Random o.ä.. Außerdem kann es sein 
+%   dass Aufzeichnungen frühzeitig abgebrochen werden o.ä.
+%   Der folgende Code teilt Bahnen immer dann auf, sobald sie erneut den Startpunkt
+%   erreichen, unabhängig von der Bahn die gefahren wurde. 
+
+
+%%
+
+
+
+
+
+
 
 %% Abfrage ob die Bahn zerlegt werden soll
 % 

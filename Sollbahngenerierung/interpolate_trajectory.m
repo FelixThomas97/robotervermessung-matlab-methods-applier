@@ -15,6 +15,7 @@ function interpolated_trajectory = interpolate_trajectory(num_points_per_segment
     
     % Interpolate between each pair of key points
     for i = 1:(num_key_points-1)
+        
         % Define start and end points of the segment
         start_point = position(i, :);
         end_point = position(i+1, :);

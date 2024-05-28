@@ -33,14 +33,14 @@ extract_ist_file(filename_excel);
     defined_velocity = 1000;
     
     % Besteht Gesamtbahn aus mehreren Bahnen und soll zerlegt werden
-    split = false; 
+    split = true; 
 
     % Welche Metriken sollen berechnet werden
     euclidean = true;
     dtw = true;
     dtw_johnen = true;
-    frechet = true;
-    lcss = false;
+    frechet = false;
+    lcss = false; % noch nicht implementiert
 
 
     % Automatisch in Datenbank eingtragen
@@ -264,7 +264,7 @@ if frechet == true
 
     if split == false
 
-        fkt_discreteFrechet(trajectory_soll,trajectory_ist);
+        fkt_discreteFrechet(trajectory_soll,trajectory_ist,pflag);
         generate_frechet_struct(trajectory_header_id, frechet_av, frechet_dist, frechet_distances, frechet_matrix, frechet_path,i,split);
         
         struct_frechet = metrics_frechet;
@@ -278,7 +278,7 @@ if frechet == true
             trajectory_ist_table = teilbahnen{i}(:, 2:4);
             trajectory_ist = table2array(trajectory_ist_table);
 
-            fkt_discreteFrechet(trajectory_soll,trajectory_ist);
+            fkt_discreteFrechet(trajectory_soll,trajectory_ist,pflag);
             generate_frechet_struct(trajectory_header_id, frechet_av, frechet_dist, frechet_distances, frechet_matrix, frechet_path,i,split);
 
             struct_frechet{i} = metrics_frechet;

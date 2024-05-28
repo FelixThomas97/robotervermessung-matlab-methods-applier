@@ -1,4 +1,4 @@
-function fkt_discreteFrechet(trajectory_soll,trajectory_ist)
+function fkt_discreteFrechet(trajectory_soll,trajectory_ist,pflag)
 
     X = trajectory_soll;
     Y = trajectory_ist;
@@ -7,7 +7,6 @@ function fkt_discreteFrechet(trajectory_soll,trajectory_ist)
     M = size(X,1);
     N = size(Y,1);
     
-    pflag = 0;
     
     %% Berechnung Frechet-Distanz in 3D
     
