@@ -33,12 +33,12 @@ extract_ist_file(filename_excel);
     defined_velocity = 2000;
     
     % Besteht Gesamtbahn aus mehreren Bahnen und soll zerlegt werden
-    split = false; 
+    split = true; 
 
     % Welche Metriken sollen berechnet werden
-    euclidean = true;
-    dtw = true;
-    dtw_johnen = true;
+    euclidean = false;
+    dtw = false;
+    dtw_johnen = false;
     frechet = false;
     lcss = false; % noch nicht implementiert
 
@@ -47,7 +47,7 @@ extract_ist_file(filename_excel);
     mongoDB = false;
 
     % Plotten der Ergebnisse 
-    pflag = true;
+    pflag = false;
     
     % Key Points für ISO-Bahn A
     if header_data.trajectory_type == "iso_path_A"

@@ -1,8 +1,8 @@
-function extract_ist_file_v3(filename_excel)
+% function extract_ist_file_v3(filename_excel)
 %%
     % %%%%% Eingefügt um nicht als Funtkion zu testen
-    % filename_excel = 'iso_diagonal_v1000_15x.xlsx';  % Input Excel file name
-    % % ----
+    % filename_excel = 'iso_diagonal_v2000_15x.xlsx';  
+    filename_excel = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
     % Lese Daten aus Excel Datei
     data_ist = readtable(filename_excel);
 %%   
@@ -21,7 +21,7 @@ function extract_ist_file_v3(filename_excel)
     events_ist = data_ist{:,14};
     index_events = find(~cellfun('isempty', events_ist));
     data_ist(1:index_events(1)-1,:) = []; % bis zum 1. Ereignis, kommt drauf an ob das Start Ereignis aufgezeichnet wurde...
-    
+
     % Extrahiere die Daten aus dem Table 
     timestamp_ist = data_ist{:, 1};
     x_ist = data_ist{:, 2};
@@ -59,4 +59,4 @@ function extract_ist_file_v3(filename_excel)
 
     % assignin('base','trajectory_ist',trajectory_ist);
     
-end
+% end

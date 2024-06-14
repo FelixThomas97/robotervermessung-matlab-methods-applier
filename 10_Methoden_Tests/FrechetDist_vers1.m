@@ -11,6 +11,8 @@ load iso_path_B_real_1.mat
 %%
 X = soll;
 Y = ist;
+% X = trajectory_soll;
+% Y = trajectory_ist;
 
 % data = table2array(trajectoryrobot31710929195154314);
 % 

@@ -11,7 +11,6 @@ function extract_ist_file(filename_excel)
     if ~ismember('q1_ist', col_names) || ~ismember('q2_ist', col_names) || ...
             ~ismember('q3_ist', col_names) || ~ismember('q4_ist', col_names)
         % Hinzufügen nach der letzten Datenspalte, wenn eine der Spalten fehlt
-        last_data_col_idx = find(contains(col_names, 'timestamp_ist'), 1, 'last') - 1;
         for i = 1:4
             data_ist.(sprintf('q%d_ist', i)) = zeros(size(data_ist, 1), 1, 'uint32');
         end
