@@ -52,18 +52,11 @@ filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
 % filename_excel_ist = 'iso_various_v2000_xx.xlsx';
 filename_excel_soll = 'soll_iso_diagonal_l630_v2000_1x.xlsx';
 
-% % Datenvorverarbeitung für durch ABB Robot Studio generierte Tabellen
-% abb_data_ist_provision(filename_excel_ist);
-% 
-% 
-% % Überprüfen ob eine Sollbahn interpoliert werden muss
-% if isempty(filename_excel_soll) == 1
-%     interpolate = true;
-% else
-%     interpolate = false;
-%     abb_data_soll_provison(filename_excel_soll);
-% end
+%%
+% Datenvorverarbeitung für durch ABB Robot Studio generierte Tabellen
 abb_data_provison(filename_excel_ist);
+% Zerlegung der Bahnen in einzelne Segmente und vollständige Messdurchläufe
+calc_abb_trajectories(data_ist,events_ist,events_all_ist);
 
 % Überprüfen ob eine Sollbahn interpoliert werden muss
 if isempty(filename_excel_soll) == 1
@@ -71,78 +64,37 @@ if isempty(filename_excel_soll) == 1
 else
     interpolate = false;
     abb_data_provison(filename_excel_soll,interpolate);
+    calc_abb_trajectories(data_soll,events_soll,events_all_soll,interpolate)
+end
+%%
+% Datenvorverarbeitung für durch ABB Robot Studio generierte Tabellen
+abb_data_soll_provison(filename_excel_ist);
+% Zerlegung der Bahnen in einzelne Segmente und vollständige Messdurchläufe
+calc_abb_trajectories(data_ist,events_ist,events_all_ist);
+
+% Überprüfen ob eine Sollbahn interpoliert werden muss
+if isempty(filename_excel_soll) == 1
+    interpolate = true;
+else
+    interpolate = false;
+    abb_data_soll_provison(filename_excel_soll,interpolate);
+    calc_abb_trajectories(data_soll,events_soll,events_all_soll,interpolate)
 end
 
+%%
 % Multiplikationsfaktor für die Anzahl der Punkte der Sollbahn
 keypoints_faktor = 1;
 
 % Einmal vorab die Base für die ID generieren
 trajectory_header_id_base = "robot0"+string(round(posixtime(datetime('now','TimeZone','UTC'))));
 
-%% Extrahieren der Codezeilen wo Ereignisse stattfinden
+%% Solldaten auffüllen, falls zu wenig aufgezeichnet wurden
+
+a = length(events_all_soll);
+b = length(events_all_ist);
+c = b-a;
 
 
-% Suchen nach mehreren aufeinanderfolgenden Ziffern am Ende der Ereignisse
-pattern = '\d+$'; 
-matches = regexp(events_all_ist, pattern, 'match');
-% Strings in double umwandeln
-events_all_ist = cellfun(@str2double, matches);
-% Erstes Ereignis extrahieren
-first_event = events_all_ist(1);
-
-% Das gleiche für events_ist
-matches = regexp(events_ist, pattern, 'match'); 
-emptyCells = cellfun('isempty', matches);       % Findet leere Zellen
-matches(emptyCells) = {'0'};                    % Füllt leere Zellen mit Nullen
-events_ist = cellfun(@str2double, matches);
-
-% Ereignisse wieder an data_ist anhängen
-data_ist = [data_ist events_ist];
-
-clear emptyCells filename_excel_ist matches pattern 
-
-%% Separieren der Ist-Bahn in Bahnabschnitte
-
-% Falls prepare_for_path, dann ignorieren dieses Ereignisses
-if pfp_ist
-    
-    events_ist(events_ist == pfp_row_ist) = 0;
-    events_all_ist(events_all_ist == pfp_row_ist) = []; 
-end
-
-% Finden der Zellen die Ereignisse beinhalten
-index_segment = find(events_ist ~= 0);
-num_segment = length(index_segment);
-
-% Cell-Array zum abspeichern der einzelnen Bahnabschnitte
-segments_ist = cell(1,num_segment);
-
-% Segmente abspeichern in Cell-Array, letztes Segment bis zum letzten Punkt
-for i = 1:1:num_segment
-    if i < num_segment
-        segments_ist{i} = data_ist(index_segment(i)-1:index_segment(i+1)-2,:);
-    elseif i == num_segment
-        segments_ist{i} = data_ist(index_segment(i)-1:end,:);
-    end
-end
-
-%% Separieren der einzelnen Bahnen
-% Indizes der Startwerte ermitteln
-index_trajectory = find(events_ist == first_event);
-% Anzahl der Messfahrten anhand aller Vorkommen des Startwerts ermitteln
-num_trajectories = length(index_trajectory);
-
-% Cell-Array zum abspeichern der einzelnen Messfahrten
-trajectories_ist = cell(1,num_trajectories);
-
-for i = 1:1:num_trajectories
-
-        if i < num_trajectories
-            trajectories_ist{i} = data_ist(index_trajectory(i)-1:index_trajectory(i+1)-2,:);
-        elseif i == num_trajectories
-            trajectories_ist{i} = data_ist(index_trajectory(i)-1:end,:);
-        end
-end
 
 %% Generiere Sollbahn für die einzelnen Bahnabschnitte
 
@@ -164,7 +116,7 @@ end
 
 %% Zusammensetzen der Sollbahn-Abschnitte für gesamte Bahnen
 
-index_first_elements = find(events_all_ist == first_event);
+index_first_elements = find(events_all_ist == events_all_ist(1));
 segments_per_traj = diff(index_first_elements);
 
 trajectories_soll = cell(1,length(trajectories_ist));

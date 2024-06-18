@@ -1,4 +1,4 @@
-function abb_data_provison(filename_excel)
+function abb_data_ist_provison(filename_excel)
 
 %% ABB Robot Datenstruktur angleichen
 
@@ -87,10 +87,11 @@ data_ist = [timestamp_ist x_ist y_ist z_ist tcp_velocity_ist tcp_acceleration_is
 
 
 %% Laden in Workspace
+
 assignin("base", "events_all", events_all);           
 assignin("base","events_ist", events_ist);
 assignin('base','data_ist',data_ist);
-assignin('base','pfp',pfp);
-assignin('base','pfp_row',pfp_row);
+assignin('base','pfp_ist',pfp);
+assignin('base','pfp_row_ist',pfp_row);
 
 end
