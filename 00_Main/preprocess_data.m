@@ -78,7 +78,7 @@ else
     pfp = false;
     if ~isempty(zeros_index)
         % Entfernen aller Daten zu Beginn der Tabelle, bei denen die Geschwindigkeit 0 ist
-        index_first_zero = find(data{:,5} ~= 0, 1, 'first');
+        index_first_zero = find(data{:,5} ~= 0, 1, 'first'); % nicht erste 0 sondern erste ~=0
         data = data(index_first_zero-2:end, :);     %%%% Sicherheitshalber -2 falls Ereigniss davor liegt
     % Sonst Bereinigung anhand der Ereignisse 
     else
