@@ -14,19 +14,19 @@ end
 
 %% Alternative 1: Lösche einen Eintrag in allen Collections aus der Datenbank
 
-searchID = 'robot01716385829';
-n = remove(conn,"header",['{"data_id": "', searchID, '"}'])
-n = remove(conn,"data",['{"trajectory_header_id": "', searchID, '"}'])
-n = remove(conn,"metrics",['{"trajectory_header_id": "', searchID, '"}'])
-n = remove(conn,"single_point_precision",['{"trajectory_header_id": "', searchID, '"}'])
+searchID = 'robot01719146835';
+nheader = remove(conn,"header",['{"data_id": "', searchID, '"}'])
+ndata = remove(conn,"data",['{"trajectory_header_id": "', searchID, '"}'])
+nmetrics = remove(conn,"metrics",['{"trajectory_header_id": "', searchID, '"}'])
+nspp = remove(conn,"single_point_precision",['{"trajectory_header_id": "', searchID, '"}'])
 
 %% Alternative 2: Lösche alle Einträge in allen Collections aus der Datenbank
 
 % Trajectory Header ID ohne die Nummer des Messdurchlaufs
-baseSearchID = 'robot01716475191';
+baseSearchID = 'robot01719154511'; % Falls Segmente mit _ am Ende
 
 % Anzahl der Queries
-anzahl_querys = 16;
+anzahl_querys = 4;
 
 % Collections
 collections = {"data", "header", "metrics", "single_point_precision"};
@@ -43,12 +43,12 @@ for i = 1:anzahl_querys
     query2 = ['{"data_id": "', searchID, '"}'];
     
     % Lösche Data
-    n = remove(conn, collections{1}, query1)
+    nheader = remove(conn, collections{1}, query1)
     % Lösche Header
-    n = remove(conn, collections{2}, query2)
+    ndata = remove(conn, collections{2}, query2)
     % Lösche Metrics
-    n = remove(conn, collections{3}, query1)
+    nmetrics = remove(conn, collections{3}, query1)
     % Lösche SPP
-    n = remove(conn, collections{4}, query1)
+    nspp = remove(conn, collections{4}, query1)
 
 end

@@ -1,5 +1,9 @@
 function [distances, maxDistance, averageDistance, accdist, dtw_X, dtw_Y, path, ix, iy, localdist] = fkt_dtw3d(X,Y,pflag)
 
+if nargin < 3 
+    pflag = false; 
+end
+
 M = length(X);
 N = length(Y);
 
@@ -126,8 +130,8 @@ if pflag
     hold on;
     grid on;
     box on;
-    plot3(dtw_X(:,1),dtw_X(:,2),dtw_X(:,3),'-ko', 'LineWidth', 2);
-    plot3(dtw_Y(:,1),dtw_Y(:,2),dtw_Y(:,3),'b','LineWidth', 2);
+    plot3(dtw_X(:,1),dtw_X(:,2),dtw_X(:,3),'o-b', 'LineWidth', 2,'markerfacecolor','b');
+    plot3(dtw_Y(:,1),dtw_Y(:,2),dtw_Y(:,3),'o-k','LineWidth', 2,'markerfacecolor','k');
     for i = 1:1:length(dtw_X)
         line([dtw_Y(i,1),dtw_X(i,1)],[dtw_Y(i,2),dtw_X(i,2)],[dtw_Y(i,3),dtw_X(i,3)],'Color','red')
     end
@@ -186,10 +190,3 @@ if pflag
     % ylabel("y [cm]","FontWeight","bold")
     % zlabel("z [cm]","FontWeight","bold")
 end
-
-%% Funktionen
-
-% Berechnung des eukl. Abstands zwischen zwei Punkten von pathX und Y
-function distance = fkt_euclDist(i, j, pathX, pathY)
-
-    distance = norm(pathX(i,:) - pathY(j,:));

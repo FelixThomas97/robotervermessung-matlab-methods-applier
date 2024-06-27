@@ -29,7 +29,7 @@ data1 = find(conn, collection, 'Query', query);
 collections = {"data", "header", "metrics", "single_point_precision"}; 
 % header funtkioniert nicht weil andere Bezeichnung
 
-searchID = 'robot01710922643432725';
+searchID = 'robot01719160237_3';
 query = ['{"trajectory_header_id": "', searchID, '"}'];
 
 data = find(conn, collections{1}, 'Query', query);

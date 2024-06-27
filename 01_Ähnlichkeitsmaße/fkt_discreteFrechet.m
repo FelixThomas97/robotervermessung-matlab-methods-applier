@@ -1,5 +1,9 @@
 function fkt_discreteFrechet(trajectory_soll,trajectory_ist,pflag)
 
+if nargin < 3 
+    pflag = false; 
+end
+
     X = trajectory_soll;
     Y = trajectory_ist;
 

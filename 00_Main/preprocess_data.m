@@ -3,33 +3,33 @@ function preprocess_data(data, interpolate)
 % load müll_soll.mat
 % data = data_soll;
 % clear data_soll
-
+% 
 % %% 
 % clear;
 % % filename_excel_ist = 'iso_various_v2000_xx.xlsx';
-% % filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
+% filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
 % %filename_excel_soll = 'soll_iso_diagonal_l630_v2000_1x.xlsx';
-% filename_excel_soll = 'soll_squares_l400_v1000_1x.xlsx'; %%%%% Keine Geschwindigkeit aufgezeichnet
+% % filename_excel_soll = 'soll_squares_l400_v1000_1x.xlsx'; %%%%% Keine Geschwindigkeit aufgezeichnet
 % 
 % 
 % 
-% % % Datenvorverarbeitung für durch ABB Robot Studio generierte Tabellen
-% % data_provision(filename_excel_ist);
+% % Datenvorverarbeitung für durch ABB Robot Studio generierte Tabellen
+% data_provision(filename_excel_ist);
 % % preprocess_data(table_ist)
 % 
 % % % Zerlegung der Bahnen in einzelne Segmente und vollständige Messdurchläufe
 % % calc_abb_trajectories(data_ist,events_ist,events_all_ist);
 % 
-% % Überprüfen ob eine Sollbahn interpoliert werden muss
-% if isempty(filename_excel_soll) == 1
-%     interpolate = true;
-% else
-%     interpolate = false;
-%     data_provision(filename_excel_soll,interpolate);
-%     % calc_abb_trajectories(data_soll,events_soll,events_all_soll,interpolate)
-% end
+% % % Überprüfen ob eine Sollbahn interpoliert werden muss
+% % if isempty(filename_excel_soll) == 1
+% %     interpolate = true;
+% % else
+% %     interpolate = false;
+% %     data_provision(filename_excel_soll,interpolate);
+% %     % calc_abb_trajectories(data_soll,events_soll,events_all_soll,interpolate)
+% % end
 % 
-% data = table_soll;
+% data = table_ist;
 
 %% Datenbereinigung zu Beginn der Tabelle
 
@@ -47,7 +47,7 @@ if length(zeros_index) == size(data,1)
 end
 
 
-%%
+%% Daten Vorverarbeitung
 
 % Überprüfen ob Suchbegriff im ersten Ereignis vorkommt
 search_term = 'prepare_for_path'; 
@@ -103,7 +103,8 @@ if ~isempty(zeros_index)
     % Nur den ersten Index bei aufeinanderfolgenden Nullen speichern
     zeros_index = zeros_index([true; diff(zeros_index) > 1]);
 end
-%%
+%% Ereignisse in Typ double umwandeln (nach Zeile in Rapid-Code)
+
 % Suchen nach mehreren aufeinanderfolgenden Ziffern am Ende der Ereignisse
 pattern = '\d+$'; 
 matches = regexp(events, pattern, 'match'); 
@@ -115,9 +116,6 @@ events = cellfun(@str2double, matches);         % In double umwandeln
 events_index = find(events ~= 0);
 events_all = events(events_index);
 
-% Ereignisse wieder an data anhängen
-data_array = [data_array events];
-
 % Falls prepare_for_path, dann ignorieren dieses Ereignisses
 if pfp
     events(events == event_pfp) = 0;
@@ -125,7 +123,10 @@ if pfp
     events_all(events_all == event_pfp) = [];
 end
 
-% Laden in Workspace
+% Ereignisse wieder an data anhängen
+data_array = [data_array events];
+
+%% Laden in Workspace
 
 % Unterscheidung ob Ist- oder Soll-Daten 
 if nargin < 2

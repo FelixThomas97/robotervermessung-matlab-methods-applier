@@ -15,7 +15,7 @@ for i = 1:1:num_segment
     % Lineare Interpolation zwischen Anfangs- und Endpunkt des Segments mit gleichbleibenden Abständen
     segment_soll = interp1([0 1], [first_point; last_point], linspace(0, 1, num_soll)); 
     
-    % Eintragen 2n Cell-Array
+    % Eintragen in Cell-Array
     segments_soll{i} = segment_soll;
 end
 
@@ -54,4 +54,5 @@ end
 
 assignin("base","segments_soll",segments_soll)
 assignin("base","trajectories_soll",trajectories_soll)
+% assignin("base","segments_per_traj",segments_per_traj)
 end

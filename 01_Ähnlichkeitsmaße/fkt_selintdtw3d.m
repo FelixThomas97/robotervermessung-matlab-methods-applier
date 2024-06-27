@@ -8,6 +8,10 @@ function [distances, maxDistance, averageDistance, AccumulatedDistance, dtw_X, d
 % clear soll ist
 %% Code der Funktion
 
+if nargin < 3 
+    pflag = false; 
+end
+
 % Initialisierung der Variablen
 M = length(X);
 N = length(Y);

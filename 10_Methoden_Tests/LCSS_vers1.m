@@ -1,12 +1,22 @@
 % % Test Test Test
 clear;
-load trajectoryrobot31710929195154314.mat
-data = table2array(trajectoryrobot31710929195154314);
-X = data(:,2:4); % Ist
-Y = data(:,10:12); % Soll
+load "data_robot01719160237_3".mat
 
-X = X(~any(isnan(X),2),:);
-Y = Y(~any(isnan(Y),2),:);
+% Daten Extrahieren
+x = cell2mat(data.x_ist); y = cell2mat(data.y_ist); z = cell2mat(data.z_ist);
+trajectory_ist = [x;y;z]';
+x = cell2mat(data.x_soll); y = cell2mat(data.y_soll); z = cell2mat(data.z_soll);
+trajectory_soll = [x;y;z]';
+clear x y z
+X = trajectory_soll; Y = trajectory_ist;
+%%
+% load trajectoryrobot31710929195154314.mat
+% data = table2array(trajectoryrobot31710929195154314);
+% X = data(:,2:4); % Ist
+% Y = data(:,10:12); % Soll
+% 
+% X = X(~any(isnan(X),2),:);
+% Y = Y(~any(isnan(Y),2),:);
 
 %% 
 % X = [1, 4, 2, 4, 5]';
@@ -31,6 +41,7 @@ eucl_av = mean(eucl_distances);
 % Maximaler Abstand der bei einer Zuordnung möglich ist!
 % MUSS ANGEGEBEN WERDEN --> Möglichkeit: ca. den max. euclidischen Abstand
 epsilon = eucl_max + 0.1*eucl_max;
+epsilon = 0.025;
 % epsilon = 0.9;
 
 % DTW-Standard zum Vergleichen
@@ -148,7 +159,7 @@ set(gca, 'YDir', 'normal');
 
 %% Plots
 
-pflag = 0;
+pflag = 1;
 if pflag
 % Plot der dem Pfad zugehörigen Punkte
 figure;

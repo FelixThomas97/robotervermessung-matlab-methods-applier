@@ -5,11 +5,17 @@ clear;
 filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
 filename_excel_soll = 'soll_iso_diagonal_l630_v2000_1x.xlsx';
 % filename_excel_soll = [];
-% filename_excel_soll = [];
 % filename_excel_soll = 'soll_squares_l400_v1000_1x.xlsx'; %%%%% Keine Geschwindigkeit aufgezeichnet
 % filename_excel_soll = 'soll_squares_l400_v2000_1x.xlsx'; %%%% komisches Event drin spielt aber keine Rolle
 % filename_excel_ist = 'ist_squares_l400_v2000_4x.xlsx';
+% filename_excel_soll = [];
 
+pflag = false;
+
+split = false;
+euclidean = true;
+dtw = true;
+do_segments = true; 
 
 %% Dateneingabe Header
 header_data = struct();
@@ -24,6 +30,7 @@ header_data.real_robot = "true";
 header_data.number_of_points_ist = [];                  % automatisch
 header_data.number_of_points_soll = [];                 % automatisch
 header_data.sample_frequency_ist = [];                  % automatisch
+header_data.sample_frequency_soll = [];                 % automatisch
 header_data.source = "matlab";
 
 %%
@@ -34,6 +41,9 @@ preprocess_data(table_ist);
 % Zerlegung der Bahnen in einzelne Segmente und vollständige Messdurchläufe
 calc_trajectories(data_ist,events_ist,zeros_index_ist);
 
+% Geschwindigkeit (nur für generierte Sollbahn)
+defined_velocity = max(data_ist(:,5));
+
 % Überprüfen ob eine Sollbahn interpoliert werden muss
 if isempty(filename_excel_soll)
     % Sollbahn muss interpoliert werden
@@ -42,19 +52,16 @@ else
     % Sollbahn steht anhand simulierter Daten zur Verfügung
     interpolate = false;
     data_provision(filename_excel_soll,interpolate);
-    preprocess_data(table_soll, interpolate)
-    calc_trajectories(data_soll,events_soll,zeros_index_soll,interpolate)
+    preprocess_data(table_soll, interpolate);
+    calc_trajectories(data_soll,events_soll,zeros_index_soll,interpolate);
 end
 
 % Multiplikationsfaktor für die Anzahl der Punkte der Sollbahn
 keypoints_faktor = 1;
 
-% Geschwindigkeit für genierte Sollbahn
-defined_velocity = 2000;
-
 % Einmal vorab die Base für die ID generieren
 trajectory_header_id_base = "robot0"+string(round(posixtime(datetime('now','TimeZone','UTC'))));
-trajectory_header_id_base_segments = trajectory_header_id_base + "segment";
+trajectory_header_id_base_segments = trajectory_header_id_base + "_";
 
 %% Solldaten für Bahnvergleich erzeugen/präperieren
 
@@ -78,8 +85,8 @@ end
 %% Datenstrukturen erzeugen
 
 % Anzahl der Messfahrten und Bahnabschnitte
-num_trajectories = size(trajectories_ist,2);
-num_segments = size(segments_ist,2);
+num_trajectories = size(trajectories_ist,2)-1;  % letzte Messfahrt wird nicht berücksichtigt!
+num_segments = size(segments_ist,2);            % alle Segmente werden berücksichtigt!
 
 % Leere Cell-Arrays für die Bewegungsdaten und Header
 struct_data = cell(1,num_trajectories);
@@ -88,7 +95,7 @@ struct_header = cell(1,num_trajectories);
 struct_header_segments = cell(1,num_segments);
 
 % Datenbank Struktur für ganze Messfahrten
-for i = 1:1:num_trajectories
+for i = 1:1:num_trajectories 
 
     % Funktionen zur Erzeugung der Datenstruktur für Soll und Istbahn 
     generate_struct_data_soll(trajectories_soll{i}, defined_velocity, interpolate);
@@ -104,7 +111,7 @@ for i = 1:1:num_trajectories
     end
 
     % Struktur für Header erzeugen
-    generate_header(trajectory_header_id, header_data, trajectories_ist{i}, trajectories_soll{i});
+    generate_header(trajectory_header_id, header_data, trajectories_ist{i}, trajectories_soll{i}, interpolate);
     struct_header{i} = header_data;
 
 end
@@ -126,111 +133,252 @@ for i = 1:1:num_segments
     end
 
     % Struktur für Header erzeugen
-    generate_header(trajectory_header_id, header_data, segments_ist{i}, segments_soll{i});
+    generate_header(trajectory_header_id, header_data, segments_ist{i}, segments_soll{i}, interpolate);
     struct_header_segments{i} = header_data;
     
 end
 
-%% Funktionen
+%% Falls nur eine Trajektorie
 
-% Generiere Struktur der Istdaten für die Datenbankeintragung 
-function generate_struct_data_ist(trajectory_ist,trajectory_header_id_base,i)
+%%%%%% To-Do: Die einzelne Trajektorie noch umbenennen!
+      
+if split == false 
 
-    % Extrahiere die Daten aus Array
-    timestamp_ist = trajectory_ist(:, 1);
-    x_ist = trajectory_ist(:, 2);
-    y_ist = trajectory_ist(:, 3);
-    z_ist = trajectory_ist(:, 4);
-    tcp_velocity_ist = trajectory_ist(:, 5);
-    tcp_acceleration_ist = trajectory_ist(:, 6);
-    cpu_temperature_ist = trajectory_ist(:, 7);
-    joint_states_ist = trajectory_ist(:, 8:13);
-    q_ist = trajectory_ist(:, 14:17);
-    % events_ist = trajectory_ist(:, 18);  %%%%%% Falls Events auch sollen
+    trajectory_header_id = trajectory_header_id_base; 
 
-    % Header ID nur hochzählen wenn mehrere Bahnen existieren !
-    if nargin < 3
-    % Header ID generieren
-        trajectory_header_id = trajectory_header_id_base;
-    else
-        trajectory_header_id = trajectory_header_id_base + num2str(i);
-    end
-
-    % Struktur für Datenbank erstellen
-    data_ist = struct();
-    data_ist.trajectory_header_id = trajectory_header_id;
-    data_ist.timestamp_ist = timestamp_ist;
-    data_ist.x_ist = x_ist/1000;  
-    data_ist.y_ist = y_ist/1000;
-    data_ist.z_ist = z_ist/1000;
-    data_ist.tcp_velocity_ist = tcp_velocity_ist;
-    data_ist.tcp_acceleration = tcp_acceleration_ist;
-    data_ist.cpu_temperature = cpu_temperature_ist;
-    data_ist.q1_ist = q_ist(:, 1);
-    data_ist.q2_ist = q_ist(:, 2);
-    data_ist.q3_ist = q_ist(:, 3);
-    data_ist.q4_ist = q_ist(:, 4);
-    data_ist.joint_states_ist = joint_states_ist; 
-    % data_ist.events = events_ist; 
-
-    % Laden in Workspace
-    assignin('base', 'trajectory_header_id', trajectory_header_id)
-    assignin('base', 'data_ist_part', data_ist);
-end
-
-% Generiere Struktur der Solldaten für die Datenbankeintragung 
-function generate_struct_data_soll(trajectory_soll, defined_velocity, interpolate)
+    % Erste und letzte Element der Timestamps extrahieren
+    timestamp_first = trajectories_ist{1}(1,1);
+    timestamp_last = trajectories_ist{end-1}(end,1);
+    index_first = find(data_ist(:,1) == timestamp_first);
+    index_last = find(data_ist(:,1) == timestamp_last);
+    % Zusammegeführte Gesamttrajektorie
+    trajectory_ist = data_ist(index_first:index_last,:);
     
-    if interpolate == true
-    % Für generierte Sollbahnen
-   
-        % Anzahl der Elemnete bestimmen
-        num_points = size(trajectory_soll,1);   
+    % Alle Sollbahnen zusammensetzen (ginge auch so für Ist-Bahn)
+    trajectory_soll = [];
+    % Schleife durch alle Elemente der Sollbahnen
+    for i = 1:length(trajectories_soll)-1          
+        currentArray = trajectories_soll{i};
+        trajectory_soll = vertcat(trajectory_soll, currentArray);
+    end
+    
+    % Falls Sollbahn gemessen wurde Timestamps anpassen
+    if interpolate == false 
+        timestamps_soll = trajectories_soll{1}(:,1);
+        dt = diff(timestamps_soll);
+        freq = 1/mean(dt); 
+        timestamps_soll_new = (0:length(trajectory_soll)-1)'/freq;
+        % Die alten Timestamps überschreiben
+        trajectory_soll(:,1) = timestamps_soll_new;
+    end
         
-        timestamp_soll = linspace(0, num_points-1, num_points)';
-        x_soll = trajectory_soll(:, 1)/1000;
-        y_soll = trajectory_soll(:, 2)/1000;
-        z_soll = trajectory_soll(:, 3)/1000;
-        % Daten die nicht verfügbar sind
-        q_soll = zeros(num_points, 4);
-        tcp_velocity_soll = defined_velocity;
-        joint_state_soll = [];        
-        % events_soll = zeros(num_points,1); %%%%%% Falls Events auch sollen
+    clear dt freq currentArray timestamps_soll timestamps_soll_new
+    clear timestamp_first timestamp_last index_first index_last
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%% Berechnung der Metriken %%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Euklidischer Abstand
+if euclidean == true
+
+    if split == false
+        
+        % Berechung der euklidischen Distanzen für die Gesamtheit der Daten
+        [eucl_interpolation,eucl_distances,eucl_t] = distance2curve(trajectory_ist,trajectory_soll,'linear');
+        generate_euclidean_struct(trajectory_soll, eucl_interpolation, eucl_distances,trajectory_header_id,i,split);
+
+        struct_euclidean = metrics_euclidean;
+    
+    else 
+        
+        struct_euclidean = cell(1,num_trajectories);
+        
+        % Berechnung der euklidischen Distanzen für alle Messfahrten
+        for i= 1:1:num_trajectories
+            
+            trajectory_header_id = trajectory_header_id_base;
+            
+            % Aktuelle Ist-Bahn
+            trajectory_ist = trajectories_ist{i}(:, 2:4);
+
+            % Aktuelle Soll-Bahn
+            if interpolate == false
+                trajectory_soll = trajectories_soll{i}(:,2:4);
+            else
+                trajectory_soll = trajectories_soll{i}(:,1:3);
+            end
+            % Berechnung der euklidschen Distanzen zwischen den Punkten
+            [eucl_interpolation,eucl_distances,~] = distance2curve(trajectory_ist,trajectory_soll,'linear');
+            % Erzeugen der Datenstruktur für die Datenbank 
+            generate_euclidean_struct(trajectory_soll, eucl_interpolation, eucl_distances,trajectory_header_id,i,split);
+           
+            struct_euclidean{i} = metrics_euclidean;    
+        end 
+
+        % Berechnung der euklidischen Distanzen für alle Bahnabschnitte
+        if do_segments == true
+
+            struct_euclidean_segments = cell(1,num_segments);
+
+            for i= 1:1:num_segments
+            
+                trajectory_header_id = trajectory_header_id_base_segments;
+                
+                % Aktueller Ist-Bahnabschnitt
+                segment_ist = segments_ist{i}(:, 2:4);
+        
+                % Aktueller Soll-Bahnabschnitt
+                if interpolate == false
+                    segment_soll = segments_soll{i}(:,2:4);
+                else
+                    segment_soll = segments_soll{i}(:,1:3);
+                end
+                % Berechnung der euklidschen Distanzen zwischen den Punkten
+                [eucl_interpolation,eucl_distances,~] = distance2curve(segment_ist,segment_soll,'linear');
+                % Erzeugen der Datenstruktur für die Datenbank 
+                generate_euclidean_struct(segment_soll, eucl_interpolation, eucl_distances,trajectory_header_id,i,split);
+               
+                struct_euclidean_segments{i} = metrics_euclidean;
+            end
+        end
+    end
+end
+clear eucl_distances eucl_interpolation
+
+%% Standard Dynamic Time Warping (DTW)
+% Gleicher Prozedur wie bei dem euklidschen Abstand ...
+
+if dtw == true
+
+    if split == false
+        % DTW für Gesamtheit der Daten
+        [dtw_distances, dtw_max, dtw_av, dtw_accdist, dtw_X, dtw_Y, dtw_path, ix, iy, localdist] = ...
+        fkt_dtw3d(trajectory_soll, trajectory_ist, pflag);
+        generate_dtw_struct(trajectory_header_id, dtw_av, dtw_max, dtw_distances, dtw_accdist, dtw_path, dtw_X, dtw_Y,i,split);
+        
+        struct_dtw = metrics_dtw;
 
     else
-    % Für gemessene Sollbahnen
-        
-        % Extrahiere die Daten aus Array
-        timestamp_soll = trajectory_soll(:, 1);
-        x_soll = trajectory_soll(:, 2);
-        y_soll = trajectory_soll(:, 3);
-        z_soll = trajectory_soll(:, 4);
-        tcp_velocity_soll = trajectory_soll(:, 5);
-        % tcp_acceleration_soll = trajectory_soll(:, 6);
-        % cpu_temperature_soll = trajectory_soll(:, 7);
-        joint_state_soll = trajectory_soll(:, 8:13);
-        q_soll = trajectory_soll(:, 14:17);
-        % events_soll = trajectory_soll(:,18);
-        
+        % DTW für die einzelnen Messfahrten
+        struct_dtw = cell(1,num_trajectories);
+
+        for i =1:num_trajectories
+
+            trajectory_header_id = trajectory_header_id_base;
+
+            trajectory_ist = trajectories_ist{i}(:, 2:4);
+            if interpolate == false
+                trajectory_soll = trajectories_soll{i}(:,2:4);
+            else
+                trajectory_soll = trajectories_soll{i}(:,1:3);
+            end
+
+            [dtw_distances, dtw_max, dtw_av, dtw_accdist, dtw_X, dtw_Y, dtw_path, ix, iy, localdist] = ...
+            fkt_dtw3d(trajectory_soll, trajectory_ist, pflag);
+            generate_dtw_struct(trajectory_header_id, dtw_av, dtw_max, dtw_distances, dtw_accdist, dtw_path, dtw_X, dtw_Y,i,split);
+
+            struct_dtw{i} = metrics_dtw;
+        end
     end
 
-    % Struktur für Datenbank erstellen
-    data_soll = struct();
-    data_soll.timestamp_soll = timestamp_soll;
-    data_soll.x_soll = x_soll;
-    data_soll.y_soll = y_soll;
-    data_soll.z_soll = z_soll;
-    data_soll.q1_soll = q_soll(:,1);
-    data_soll.q2_soll = q_soll(:,2);
-    data_soll.q3_soll = q_soll(:,3);
-    data_soll.q4_soll = q_soll(:,4);
-    data_soll.tcp_velocity_soll = tcp_velocity_soll;
-    data_soll.joint_state_soll = joint_state_soll;
-    % data_soll.events_soll = events_soll;        
+    % DTW für alle Bahnabschnitte
+    if do_segments == true
 
-    % Laden in Workspace
-    assignin("base","data_soll_part",data_soll)
+        struct_dtw_segments = cell(1,num_segments);
+
+        for i= 1:1:num_segments
+        
+            trajectory_header_id = trajectory_header_id_base_segments;
+            
+            segment_ist = segments_ist{i}(:, 2:4);
+    
+            if interpolate == false
+                segment_soll = segments_soll{i}(:,2:4);
+            else
+                segment_soll = segments_soll{i}(:,1:3);
+            end
+            
+            [dtw_distances, dtw_max, dtw_av, dtw_accdist, dtw_X, dtw_Y, dtw_path, ix, iy, localdist] = ...
+            fkt_dtw3d(segment_soll, segment_ist, pflag);
+            generate_dtw_struct(trajectory_header_id, dtw_av, dtw_max, dtw_distances, dtw_accdist, dtw_path, dtw_X, dtw_Y,i,split);
+
+            struct_dtw_segments{i} = metrics_dtw;
+        end
+    end
 end
+
+%% Dynamic Time Warping mit selektiver Interpolation (SIDTW)
+
+split = false;
+sidtw = true;
+
+if sidtw == true
+
+    if split == false
+        % SIDTW für Gesamtheit der Daten
+        [sidtw_distances, sidtw_max, sidtw_av,...
+            sidtw_accdist, sidtw_X, sidtw_Y, sidtw_path, ~, ~]...
+            = fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
+        generate_dtwjohnen_struct(trajectory_header_id,sidtw_max, sidtw_av, ...
+            sidtw_distances,sidtw_X,sidtw_Y,sidtw_accdist,sidtw_path,i,split);
+        
+        struct_sidtw = metrics_johnen;
+    else
+        % SIDTW für die einzelnen Messfahrten
+        struct_sidtw = cell(1,num_trajectories);
+
+        for i =1:num_trajectories
+
+            trajectory_header_id = trajectory_header_id_base;
+
+            trajectory_ist = trajectories_ist{i}(:, 2:4);
+            if interpolate == false
+                trajectory_soll = trajectories_soll{i}(:,2:4);
+            else
+                trajectory_soll = trajectories_soll{i}(:,1:3);
+            end
+
+            [sidtw_distances, sidtw_max, sidtw_av,...
+                sidtw_accdist, sidtw_X, sidtw_Y, sidtw_path, ~, ~]...
+                = fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
+            generate_dtwjohnen_struct(trajectory_header_id,sidtw_max, sidtw_av, ...
+                sidtw_distances,sidtw_X,sidtw_Y,sidtw_accdist,sidtw_path,i,split);
+
+            struct_sidtw{i} = metrics_johnen;
+        end
+    end
+
+    % SIDTW für alle Bahnabschnitte
+    if do_segments == true
+
+        struct_sidtw_segments = cell(1,num_segments);
+
+        for i= 1:1:num_segments
+        
+            trajectory_header_id = trajectory_header_id_base_segments;
+            
+            segment_ist = segments_ist{i}(:, 2:4);
+    
+            if interpolate == false
+                segment_soll = segments_soll{i}(:,2:4);
+            else
+                segment_soll = segments_soll{i}(:,1:3);
+            end  
+
+            [sidtw_distances, sidtw_max, sidtw_av,...
+                sidtw_accdist, sidtw_X, sidtw_Y, sidtw_path, ~, ~]...
+                = fkt_selintdtw3d(segment_soll,segment_ist,pflag);
+            generate_dtwjohnen_struct(trajectory_header_id,sidtw_max, sidtw_av, ...
+                sidtw_distances,sidtw_X,sidtw_Y,sidtw_accdist,sidtw_path,i,split);
+
+            struct_sidtw_segments{i} = metrics_johnen;
+        end
+    end
+end
+
 
 %% Einzelne Segmente plotten
 
@@ -247,8 +395,40 @@ end
 
 %% Ganze Trajektorien plotten
 
+% % Eine bestimmte Trajektorie plotten
 % figure;
 % hold on
 % plot3(trajectories_soll{5}(:,2),trajectories_soll{5}(:,3),trajectories_soll{5}(:,4),'ko');
 % plot3(trajectories_ist{5}(:,2),trajectories_ist{5}(:,3),trajectories_ist{5}(:,4),'-bo');
 % hold off
+
+% Plotten aller Trajektorien
+if pflag 
+    if interpolate == false
+    
+        for i = 1:num_trajectories % letzte wird hier nicht geplottet, sonst +1
+            figure;
+            hold on
+            plot3(trajectories_soll{i}(:,2),trajectories_soll{i}(:,3),trajectories_soll{i}(:,4),'ko');
+            plot3(trajectories_ist{i}(:,2),trajectories_ist{i}(:,3),trajectories_ist{i}(:,4),'-bo');
+            hold off
+            view(3)
+        end
+    
+    else
+        for i = 1:num_trajectories % letzte wird hier nicht geplottet, sonst +1
+            figure;
+            hold on
+            plot3(trajectories_soll{i}(:,1),trajectories_soll{i}(:,2),trajectories_soll{i}(:,3),'ko');
+            plot3(trajectories_ist{i}(:,2),trajectories_ist{i}(:,3),trajectories_ist{i}(:,4),'-bo');
+            hold off
+            view(3)
+        end
+    
+    end
+end
+
+%% Aufräumen für Übersicht
+
+clear data_ist_part data_soll_part fields_soll i j 
+clear filename_excel_ist filename_excel_soll
