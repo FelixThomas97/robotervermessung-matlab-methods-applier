@@ -6,6 +6,9 @@ data_table = readtable('cubes1to5_v1000_300hz_data.csv');
 % max. Abweichung der Gesamtlänge eines Bahnabschnitts, sonst Spline!
 p = 0.03;
 
+% Faktor für Interpolationspunkte der Sollbahn (1 = Anzahl Ist-Bahn)
+keypoints_faktor = 1;
+
 % Daten separieren, da NaN in verschiedenen Zeilen auftreten
 data_time = data_table{:,1:3};
 data_pose = data_table{:,4:10};
@@ -34,12 +37,12 @@ velocity = data(:,14)*1000;
 
 % Punktweise Berechnung der Abstände
 M = size(position, 1);
-distances = zeros(M-1, 1);
+position_distances = zeros(M-1, 1);
 for i = 1:M-1
     % Differenz zwischen aufeinanderfolgenden Punkten
     diffs = position(i+1, :) - position(i, :);
     % Euklidische Distanz
-    distances(i) = norm(diffs);
+    position_distances(i) = norm(diffs);
 end
 
 % Oberer Grenzwert des Abstands für den Punkte als Gleich angenommen werden
@@ -49,7 +52,7 @@ threshold = 0.05;
 min_index_distance = 150;
 
 % Indizes der Abstände, die geringer als der Grenzwert sind
-indices_threshold = find(distances < threshold);
+indices_threshold = find(position_distances < threshold);
 
 % Berechnung der Indizes und Punkte ensprechend Schritweitte und Grenzwert
 points_all = [];
@@ -72,7 +75,6 @@ for i = 1:length(points_all)-1
     dist_points_all(i) = norm(diffs);
 end
 
-
 % Neue Vektoren für Abstände Punkte und Indizes
 points = points_all;
 dist_points = dist_points_all;
@@ -87,9 +89,13 @@ points(index_equal_points,:) = [];
 % Letzer Abstand nicht relevant
 dist_points(end) = [];
 
+clear points_all indices_points_all indices_threshold idx last_saved_index
+clear dist_points_all diffs M 
+
 %% Ist-Bahn vorbereiten: Erkennen welcher Abschnitt des Iso-Cubes
-% Annahme, dass Bahnlängen eine maximale Abweichung von 2-5 mm haben
+% Annahme, dass Bahnlängen eine maximale Abweichung von ... mm haben
 binWidth = 2;
+% histogram(dist_points, 'BinWidth', binWidth);
 % Ermitteln der häufigsten Bahnlängen: Annahme diese ist die Kantenlänge des Iso-Würfels
 [counts, edges] = histcounts(dist_points, 'BinWidth', binWidth);
 [~, max_idx] = max(counts);
@@ -131,25 +137,28 @@ index_relevant = sort(index_relevant);
 index_all = (1:1:length(dist_points))';
 index_p2p = setdiff(index_all,index_relevant);
 
-clear root3 root2 edges
-clear most_common_length edges counts 
-clear last_index last_saved_index idx i M index_all index_relevant
-
-
 % Löschen der nicht benötigten Werte am Anfang und am Ende der Messung
 data_ist = data(indices_points(1):indices_points(end),:);
 trajectory_ist = position(indices_points(1):indices_points(end),:);
 % Aktualisieren der Indizes
 index_ist = indices_points - indices_points(1)+1;
 
-%% Ist-Bahn in Segmente splitten
+clear root3 root2 edges min_idx max_idx 
+clear most_common_length edges counts 
+clear last_index last_saved_index index_all index_relevant
 
-% Cell-Array erstellen und abspeichern der Teilbahnen
+%% Bahnabschnitte der Ist-Bahn bestimmen
+% Auch Klassifizierung ob es sich um P2P-Abschnitte handelt
+
+% Initialisierung der benötigten Arrays
 segments_ist = cell(1,length(dist_points));
 is_spline = zeros(length(dist_points),1);
 dist_segment = zeros(length(dist_points),1);
+
+% Erstellen der Bahnabschnitte und Klassifizierung
 for i = 1:1:size(segments_ist,2)
 
+    % Startpunkt und Endpunkt festlegen
     idx1 = index_ist(i);
     if i < size(segments_ist,2)
         idx2 = index_ist(i+1)-1;
@@ -177,21 +186,22 @@ for i = 1:1:size(segments_ist,2)
     else
         is_spline(i) = 1;
     end
-    % Anzahl der Bahnabschnitte die Splines sind
-    num_splines = length(is_spline(is_spline == 1));
-
 end
+
+% Anzahl der Bahnabschnitte die Splines sind
+num_splines = length(is_spline(is_spline == 1));
 
 % Für Datenabgleich anhängen
 dist_segment = [dist_segment is_spline];
 
+clear diffs dists idx1 idx2
 
-%% Sollbahn-Generierung
-keypoints_faktor = 1;
-seg_soll_all = cell(1,length(dist_points));
-num_seg = size(seg_soll_all,2);
 
-diff_length = zeros(length(dist_points),1);
+%% Sollbahngenerierung der Bahnabschnitte
+
+% Initialisierung
+segments_soll = cell(1,length(dist_points));
+num_seg = size(segments_soll,2);
 
 for i = 1:1:num_seg
     
@@ -202,25 +212,26 @@ for i = 1:1:num_seg
     else
         idx2 = index_ist(i+1);
     end
-    % Ermittlung der 50 letzten Punkte eines Abschnitts
+
+    % Ermittlung einer Auswahl an Punkte am Ende eines Abschnitts
     if i < num_seg
-        last50 = trajectory_ist(idx2-5:idx2+5,:);
+        selection = trajectory_ist(idx2-5:idx2+5,:);
     else
-        last50 = trajectory_ist(idx2-10:idx2,:);
+        selection = trajectory_ist(idx2-10:idx2,:);
     end
     % Ermittlung der normierten Richtungsvektoren für die 50 Punkte
-    last50_direction = zeros(length(last50),3);
-    last50_norm_direction = zeros(length(last50),3);
-    for j = 1:length(last50)
-        last50_direction(j,:) = last50(j,:) - trajectory_ist(idx1,:);
-        norm_ = norm(last50_direction(j,:));
+    selection_direction = zeros(length(selection),3);
+    selection_norm_direction = zeros(length(selection),3);
+    for j = 1:length(selection)
+        selection_direction(j,:) = selection(j,:) - trajectory_ist(idx1,:);
+        norm_ = norm(selection_direction(j,:));
         if norm_ ~= 0
-            last50_norm_direction(j,:) = last50_direction(j,:)/norm_;
+            selection_norm_direction(j,:) = selection_direction(j,:)/norm_;
         end
     end
     
     % Gemitteleter und normierter Richtungsvektor 
-    direction_mean = mean(last50_norm_direction,1);
+    direction_mean = mean(selection_norm_direction,1);
     direction_mean = direction_mean/norm(direction_mean);
 
     % Anzahl Punkte
@@ -253,47 +264,47 @@ for i = 1:1:num_seg
     end
     
     % Eintragen in Cell-Array
-    seg_soll_all{i} = segment_soll;
+    segments_soll{i} = segment_soll;
 
     diff_length(i) = vecnorm(first_point-last_point);
 end
 
-clear last50_norm_direction last50 last50_direction norm_
+clear selection_norm_direction selection selection_direction norm_
 
 % Zu Gesamttrajektorie zusammenführen und Abstände in den Ecken ermitteln
 traj_soll_all = [];
-diffs_corner = zeros(size(seg_soll_all,2),1);
-for i = 1:size(seg_soll_all,2)
-    traj_soll_all = [traj_soll_all; seg_soll_all{i}];
-    diffs_corner(i) = norm(seg_soll_all{i}(1,:)-segments_ist{i}(1,:));
+diffs_corner = zeros(size(segments_soll,2),1);
+for i = 1:size(segments_soll,2)
+    traj_soll_all = [traj_soll_all; segments_soll{i}];
+    diffs_corner(i) = norm(segments_soll{i}(1,:)-segments_ist{i}(1,:));
 end
 
 % Bahnabschnitte und Gesamttrajektorie ohne die als P2P klassifizierten Bahnabschnitte
 trajectory_soll = [];
 traj_ist_nospline = [];
 
-segments_soll = cell(1, size(seg_soll_all,2));
+segments_soll_nospline = cell(1, size(segments_soll,2));
 
 segments_ist_nospline = cell(1, size(segments_ist,2));
 
-for i = 1:size(seg_soll_all,2)
+for i = 1:size(segments_soll,2)
     if is_spline(i) == 0
-        trajectory_soll = [trajectory_soll;  seg_soll_all{i}];
+        trajectory_soll = [trajectory_soll;  segments_soll{i}];
         traj_ist_nospline = [traj_ist_nospline; segments_ist{i}];
-        segments_soll{i} =  seg_soll_all{i};
+        segments_soll_nospline{i} =  segments_soll{i};
         segments_ist_nospline{i} = segments_ist{i};
     end
 end
 
 % Löschen der leeren Zellen 
-segments_soll(cellfun(@isempty,segments_soll)) = [];
+segments_soll_nospline(cellfun(@isempty,segments_soll_nospline)) = [];
 segments_ist_nospline(cellfun(@isempty,segments_ist_nospline)) = [];
 
 % Plot aller Bahnabsschnitte von Soll und Istbahn
 figure;
-for i = 1:size(segments_soll,2)
+for i = 1:size(segments_soll_nospline,2)
     hold on
-    plot3(segments_soll{i}(:,1),segments_soll{i}(:,2),segments_soll{i}(:,3),'b')
+    plot3(segments_soll_nospline{i}(:,1),segments_soll_nospline{i}(:,2),segments_soll_nospline{i}(:,3),'b')
 end
 for i = 1:size(segments_ist,2)
     hold on 
@@ -302,9 +313,9 @@ end
 %%
 % Soll und Istbahnen ohne PTP Segmente
 figure;
-for i = 1:size(segments_soll,2)
+for i = 1:size(segments_soll_nospline,2)
     hold on
-    plot3(segments_soll{i}(:,1),segments_soll{i}(:,2),segments_soll{i}(:,3),'b')
+    plot3(segments_soll_nospline{i}(:,1),segments_soll_nospline{i}(:,2),segments_soll_nospline{i}(:,3),'b')
 end
 for i = 1:size(segments_ist_nospline,2)
     hold on 
@@ -312,19 +323,19 @@ for i = 1:size(segments_ist_nospline,2)
 end
 
 %%
-figure;
-hold on
-plot3(traj_soll_all(:,1),traj_soll_all(:,2),traj_soll_all(:,3),'r')
-plot3(traj_soll_all(end,1),traj_soll_all(end,2),traj_soll_all(end,3),'ro',MarkerSize=5,MarkerFaceColor='r')
-plot3(traj_soll_all(1,1),traj_soll_all(1,2),traj_soll_all(1,3),'rsquare',MarkerSize=5,MarkerFaceColor='r')
-
-plot3(trajectory_ist(:,1),trajectory_ist(:,2),trajectory_ist(:,3),'b');
-plot3(trajectory_ist(end,1),trajectory_ist(end,2),trajectory_ist(end,3),'bo',MarkerSize=5,MarkerFaceColor='b');
-plot3(trajectory_ist(1,1),trajectory_ist(1,2),trajectory_ist(1,3),'bsquare',MarkerSize=5,MarkerFaceColor='b');
-
-plot3(trajectory_ist(index_ist(2),1),trajectory_ist(index_ist(2),2),trajectory_ist(index_ist(2),3),'bo',MarkerSize=5,MarkerFaceColor='b');
-
-hold off
+% figure;
+% hold on
+% plot3(traj_soll_all(:,1),traj_soll_all(:,2),traj_soll_all(:,3),'r')
+% plot3(traj_soll_all(end,1),traj_soll_all(end,2),traj_soll_all(end,3),'ro',MarkerSize=5,MarkerFaceColor='r')
+% plot3(traj_soll_all(1,1),traj_soll_all(1,2),traj_soll_all(1,3),'rsquare',MarkerSize=5,MarkerFaceColor='r')
+% 
+% plot3(trajectory_ist(:,1),trajectory_ist(:,2),trajectory_ist(:,3),'b');
+% plot3(trajectory_ist(end,1),trajectory_ist(end,2),trajectory_ist(end,3),'bo',MarkerSize=5,MarkerFaceColor='b');
+% plot3(trajectory_ist(1,1),trajectory_ist(1,2),trajectory_ist(1,3),'bsquare',MarkerSize=5,MarkerFaceColor='b');
+% 
+% plot3(trajectory_ist(index_ist(2),1),trajectory_ist(index_ist(2),2),trajectory_ist(index_ist(2),3),'bo',MarkerSize=5,MarkerFaceColor='b');
+% 
+% hold off
 %%
 
 % a = min(velocity);
@@ -346,53 +357,53 @@ hold off
 
 %% Plots der Segmente (mit Splines!)
 
-% figure;
-% hold on
-% plot3(segments_ist{1}(:,1),segments_ist{1}(:,2),segments_ist{1}(:,3),'r')% spline
-% plot3(segments_ist{2}(:,1),segments_ist{2}(:,2),segments_ist{2}(:,3),'b')
-% plot3(segments_ist{3}(:,1),segments_ist{3}(:,2),segments_ist{3}(:,3),'b')
-% plot3(segments_ist{4}(:,1),segments_ist{4}(:,2),segments_ist{4}(:,3),'b')
-% plot3(segments_ist{5}(:,1),segments_ist{5}(:,2),segments_ist{5}(:,3),'b')
-% plot3(segments_ist{6}(:,1),segments_ist{6}(:,2),segments_ist{6}(:,3),'b')
-% plot3(segments_ist{7}(:,1),segments_ist{7}(:,2),segments_ist{7}(:,3),'b')
-% plot3(segments_ist{8}(:,1),segments_ist{8}(:,2),segments_ist{8}(:,3),'b')
-% plot3(segments_ist{9}(:,1),segments_ist{9}(:,2),segments_ist{9}(:,3),'b')
-% plot3(segments_ist{10}(:,1),segments_ist{10}(:,2),segments_ist{10}(:,3),'r')% spline
-% plot3(segments_ist{11}(:,1),segments_ist{11}(:,2),segments_ist{11}(:,3),'b')
-% plot3(segments_ist{12}(:,1),segments_ist{12}(:,2),segments_ist{12}(:,3),'b')
-% plot3(segments_ist{13}(:,1),segments_ist{13}(:,2),segments_ist{13}(:,3),'b')
-% plot3(segments_ist{14}(:,1),segments_ist{14}(:,2),segments_ist{14}(:,3),'b')
-% plot3(segments_ist{15}(:,1),segments_ist{15}(:,2),segments_ist{15}(:,3),'b')
-% plot3(segments_ist{16}(:,1),segments_ist{16}(:,2),segments_ist{16}(:,3),'r')% spline
-% plot3(segments_ist{17}(:,1),segments_ist{17}(:,2),segments_ist{17}(:,3),'r')% spline
-% plot3(segments_ist{18}(:,1),segments_ist{18}(:,2),segments_ist{18}(:,3),'b')
-% plot3(segments_ist{19}(:,1),segments_ist{19}(:,2),segments_ist{19}(:,3),'r')% spline
-% plot3(segments_ist{20}(:,1),segments_ist{20}(:,2),segments_ist{20}(:,3),'r')% spline
-% plot3(segments_ist{21}(:,1),segments_ist{21}(:,2),segments_ist{21}(:,3),'b')
-% plot3(segments_ist{22}(:,1),segments_ist{22}(:,2),segments_ist{22}(:,3),'b')
-% plot3(segments_ist{23}(:,1),segments_ist{23}(:,2),segments_ist{23}(:,3),'b')
-% plot3(segments_ist{24}(:,1),segments_ist{24}(:,2),segments_ist{24}(:,3),'b')
-% plot3(segments_ist{25}(:,1),segments_ist{25}(:,2),segments_ist{25}(:,3),'b')
-% plot3(segments_ist{26}(:,1),segments_ist{26}(:,2),segments_ist{26}(:,3),'b')
-% plot3(segments_ist{27}(:,1),segments_ist{27}(:,2),segments_ist{27}(:,3),'b')
-% plot3(segments_ist{28}(:,1),segments_ist{28}(:,2),segments_ist{28}(:,3),'r')% spline
-% plot3(segments_ist{29}(:,1),segments_ist{29}(:,2),segments_ist{29}(:,3),'b')
-% plot3(segments_ist{30}(:,1),segments_ist{30}(:,2),segments_ist{30}(:,3),'b')
-% plot3(segments_ist{31}(:,1),segments_ist{31}(:,2),segments_ist{31}(:,3),'b')
-% plot3(segments_ist{32}(:,1),segments_ist{32}(:,2),segments_ist{32}(:,3),'b')
-% plot3(segments_ist{33}(:,1),segments_ist{33}(:,2),segments_ist{33}(:,3),'b')
-% plot3(segments_ist{34}(:,1),segments_ist{34}(:,2),segments_ist{34}(:,3),'b')
-% plot3(segments_ist{35}(:,1),segments_ist{35}(:,2),segments_ist{35}(:,3),'b')
-% plot3(segments_ist{36}(:,1),segments_ist{36}(:,2),segments_ist{36}(:,3),'b')
-% plot3(segments_ist{37}(:,1),segments_ist{37}(:,2),segments_ist{37}(:,3),'r')% spline
-% plot3(segments_ist{38}(:,1),segments_ist{38}(:,2),segments_ist{38}(:,3),'b')
-% plot3(segments_ist{39}(:,1),segments_ist{39}(:,2),segments_ist{39}(:,3),'b')
-% plot3(segments_ist{40}(:,1),segments_ist{40}(:,2),segments_ist{40}(:,3),'b')
-% plot3(segments_ist{41}(:,1),segments_ist{41}(:,2),segments_ist{41}(:,3),'b')
-% plot3(segments_ist{42}(:,1),segments_ist{42}(:,2),segments_ist{42}(:,3),'b')
-% plot3(segments_ist{43}(:,1),segments_ist{43}(:,2),segments_ist{43}(:,3),'b')
-% plot3(segments_ist{44}(:,1),segments_ist{44}(:,2),segments_ist{44}(:,3),'b')
-% plot3(segments_ist{45}(:,1),segments_ist{45}(:,2),segments_ist{45}(:,3),'b')
+figure;
+hold on
+plot3(segments_ist{1}(:,1),segments_ist{1}(:,2),segments_ist{1}(:,3),'r')% spline
+plot3(segments_ist{2}(:,1),segments_ist{2}(:,2),segments_ist{2}(:,3),'b')
+plot3(segments_ist{3}(:,1),segments_ist{3}(:,2),segments_ist{3}(:,3),'b')
+plot3(segments_ist{4}(:,1),segments_ist{4}(:,2),segments_ist{4}(:,3),'b')
+plot3(segments_ist{5}(:,1),segments_ist{5}(:,2),segments_ist{5}(:,3),'b')
+plot3(segments_ist{6}(:,1),segments_ist{6}(:,2),segments_ist{6}(:,3),'b')
+plot3(segments_ist{7}(:,1),segments_ist{7}(:,2),segments_ist{7}(:,3),'b')
+plot3(segments_ist{8}(:,1),segments_ist{8}(:,2),segments_ist{8}(:,3),'b')
+plot3(segments_ist{9}(:,1),segments_ist{9}(:,2),segments_ist{9}(:,3),'b')
+plot3(segments_ist{10}(:,1),segments_ist{10}(:,2),segments_ist{10}(:,3),'r')% spline
+plot3(segments_ist{11}(:,1),segments_ist{11}(:,2),segments_ist{11}(:,3),'b')
+plot3(segments_ist{12}(:,1),segments_ist{12}(:,2),segments_ist{12}(:,3),'b')
+plot3(segments_ist{13}(:,1),segments_ist{13}(:,2),segments_ist{13}(:,3),'b')
+plot3(segments_ist{14}(:,1),segments_ist{14}(:,2),segments_ist{14}(:,3),'b')
+plot3(segments_ist{15}(:,1),segments_ist{15}(:,2),segments_ist{15}(:,3),'b')
+plot3(segments_ist{16}(:,1),segments_ist{16}(:,2),segments_ist{16}(:,3),'r')% spline
+plot3(segments_ist{17}(:,1),segments_ist{17}(:,2),segments_ist{17}(:,3),'r')% spline
+plot3(segments_ist{18}(:,1),segments_ist{18}(:,2),segments_ist{18}(:,3),'b')
+plot3(segments_ist{19}(:,1),segments_ist{19}(:,2),segments_ist{19}(:,3),'r')% spline
+plot3(segments_ist{20}(:,1),segments_ist{20}(:,2),segments_ist{20}(:,3),'r')% spline
+plot3(segments_ist{21}(:,1),segments_ist{21}(:,2),segments_ist{21}(:,3),'b')
+plot3(segments_ist{22}(:,1),segments_ist{22}(:,2),segments_ist{22}(:,3),'b')
+plot3(segments_ist{23}(:,1),segments_ist{23}(:,2),segments_ist{23}(:,3),'b')
+plot3(segments_ist{24}(:,1),segments_ist{24}(:,2),segments_ist{24}(:,3),'b')
+plot3(segments_ist{25}(:,1),segments_ist{25}(:,2),segments_ist{25}(:,3),'b')
+plot3(segments_ist{26}(:,1),segments_ist{26}(:,2),segments_ist{26}(:,3),'b')
+plot3(segments_ist{27}(:,1),segments_ist{27}(:,2),segments_ist{27}(:,3),'b')
+plot3(segments_ist{28}(:,1),segments_ist{28}(:,2),segments_ist{28}(:,3),'r')% spline
+plot3(segments_ist{29}(:,1),segments_ist{29}(:,2),segments_ist{29}(:,3),'b')
+plot3(segments_ist{30}(:,1),segments_ist{30}(:,2),segments_ist{30}(:,3),'b')
+plot3(segments_ist{31}(:,1),segments_ist{31}(:,2),segments_ist{31}(:,3),'b')
+plot3(segments_ist{32}(:,1),segments_ist{32}(:,2),segments_ist{32}(:,3),'b')
+plot3(segments_ist{33}(:,1),segments_ist{33}(:,2),segments_ist{33}(:,3),'b')
+plot3(segments_ist{34}(:,1),segments_ist{34}(:,2),segments_ist{34}(:,3),'b')
+plot3(segments_ist{35}(:,1),segments_ist{35}(:,2),segments_ist{35}(:,3),'b')
+plot3(segments_ist{36}(:,1),segments_ist{36}(:,2),segments_ist{36}(:,3),'b')
+plot3(segments_ist{37}(:,1),segments_ist{37}(:,2),segments_ist{37}(:,3),'r')% spline
+plot3(segments_ist{38}(:,1),segments_ist{38}(:,2),segments_ist{38}(:,3),'b')
+plot3(segments_ist{39}(:,1),segments_ist{39}(:,2),segments_ist{39}(:,3),'b')
+plot3(segments_ist{40}(:,1),segments_ist{40}(:,2),segments_ist{40}(:,3),'b')
+plot3(segments_ist{41}(:,1),segments_ist{41}(:,2),segments_ist{41}(:,3),'b')
+plot3(segments_ist{42}(:,1),segments_ist{42}(:,2),segments_ist{42}(:,3),'b')
+plot3(segments_ist{43}(:,1),segments_ist{43}(:,2),segments_ist{43}(:,3),'b')
+plot3(segments_ist{44}(:,1),segments_ist{44}(:,2),segments_ist{44}(:,3),'b')
+plot3(segments_ist{45}(:,1),segments_ist{45}(:,2),segments_ist{45}(:,3),'b')
 
 
 %%
