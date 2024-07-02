@@ -1,0 +1,187 @@
+MODULE Trajectories
+    CONST jointtarget Allzero := [[0, 0, 0, 0, 0, 0], [9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget Home10 := [[133.0,-645.0,1990.0],[0.266942,0.611924,0.397607,0.629444],[-2,1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget Home:=[[370.0,-500.0,1730.0],[0.0642142,0.60757,0.386589,0.690857],[-1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST intnum number_of_repetitions := 15;
+    CONST num length := 630; ! Length of the square in milimeters;
+    CONST speeddata speed := v2500;
+    CONST num ratio{10} := [1, 1/2, 2/3, 1/3, 3/4, 1/4, 1/5, 2/5, 3/5, 4/5];
+    VAR num selected_length_x;
+    VAR num selected_length_y;
+    VAR num selected_length_z;
+    VAR string current_time;
+    VAR bool converted_to_value;
+    VAR intnum last_digit;
+    VAR intnum next_to_last_digit;
+    VAR intnum k;
+    CONST robtarget E2 := [[133.0,-645.0,1360.0],[0.266942,0.611924,0.397607,0.629444],[-2,1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget E3 := [[133.0,-1200.0,1360.0],[0.266942,0.611924,0.397607,0.629444],[-2,1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget E4 := [[133.0,-1200.0,1990.0],[0.266942,0.611924,0.397607,0.629444],[-2,1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget E5 := [[133.0,-645.0,1990.0],[0.266942,0.611924,0.397607,0.629444],[-2,1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget E6 := [[133.0,-800.0,1600.0],[0.266942,0.611924,0.397607,0.629444],[-2,1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget E7 := [[300.0,-800.0,1600.0],[0.266942,0.611924,0.397607,0.629444],[-2,1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget E8 := [[200.0,-600.0,1360.0],[0.266942,0.611924,0.397607,0.629444],[-2,1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    VAR robtarget zero_pose;
+    VAR jointtarget current_joints;
+    VAR num joint_angles{6};
+    VAR bool use_socket := FALSE;
+ 
+!HAUPTPROGRAMM
+    PROC main2()
+        prepare_for_path;
+        !test_point;
+        !random_inside_iso_cube;
+        !iso_diagonal;
+        !iso_various;
+        !squarely;
+        !prepare_for_path;
+        !square_xz;
+        !prepare_for_path;
+        !square_yz;
+        !move_second_zero;
+    ENDPROC
+    PROC move_all_zero() 
+        move_joint_1_to_zero;
+        move_joint_2_to_zero;
+        move_joint_3_to_zero;
+        move_joint_4_to_zero;
+        move_joint_5_to_zero;
+        move_joint_6_to_zero;
+    ENDPROC
+    PROC move_second_zero()
+        move_joint_1_to_second_zero;
+        move_joint_2_to_zero;
+        move_joint_3_to_zero;
+        move_joint_4_to_zero;
+        move_joint_5_to_zero;
+        move_joint_6_to_zero;
+    ENDPROC
+ 
+    PROC square_xy()
+        MoveL Offs(Home, 0, -length, 0), speed, fine, tool0;
+        MoveL Offs(Home, length, -length, 0), speed, fine, tool0;
+        MoveL Offs(Home, length, 0, 0), speed, fine, tool0;
+        MoveL Offs(Home, 0, 0, 0), speed, fine, tool0;
+    ENDPROC
+    PROC square_yz()
+        MoveL Offs(Home, 0, -length, 0), speed, fine, tool0;
+        MoveL Offs(Home, 0, -length, -length), speed, fine, tool0;
+        MoveL Offs(Home, 0, 0, -length), speed, fine, tool0;
+        MoveL Offs(Home, 0, 0, 0), speed, fine, tool0;
+    ENDPROC
+    PROC square_xz()
+        MoveL Offs(Home, 0, 0, -length), speed, fine, tool0;
+        MoveL Offs(Home, length, 0, -length), speed, fine, tool0;
+        MoveL Offs(Home, length, 0, 0), speed, fine, tool0;
+        MoveL Offs(Home, 0, 0, 0), speed, fine, tool0;
+    ENDPROC
+    PROC square_calibration()
+        MoveL E2, speed, fine, tool0;
+        MoveL E3, speed, fine, tool0;
+        MoveL E4, speed, fine, tool0;
+        MoveL E5, speed, fine, tool0;
+        MoveL E6, speed, fine, tool0;
+        MoveL E7, speed, fine, tool0;
+        MoveL E8, speed, fine, tool0;
+    ENDPROC
+   PROC iso_diagonal_A()
+        MoveL Offs(Home, 0, -length, 0), speed, fine, tool0;
+        MoveL Offs(Home, length, -length, -length), speed, fine, tool0;
+        MoveL Offs(Home, length, 0, -length), speed, fine, tool0;
+        MoveL Offs(Home, 0, 0, 0), speed, fine, tool0;
+    ENDPROC
+    PROC iso_diagonal_B()
+        MoveL Offs(Home, 0, -length, -length), speed, fine, tool0;
+        MoveL Offs(Home, length, -length, -length), speed, fine, tool0;
+        MoveL Offs(Home, length, 0, 0), speed, fine, tool0;
+        MoveL Offs(Home, 0, 0, 0), speed, fine, tool0;
+    ENDPROC
+   PROC iso_various()
+       FOR i FROM 0 TO number_of_repetitions DO
+        MoveL Offs(Home, length, -length, -length), speed, fine, tool0;
+        MoveL Offs(Home, length, 0, -length), speed, fine, tool0;
+        MoveL Offs(Home, 0, -length, 0), speed, fine, tool0;
+        MoveL Offs(Home, 0, 0, 0), speed, fine, tool0;
+        MoveL Offs(Home, length/2, 0, 0), speed, fine, tool0;
+        MoveL Offs(Home, length/2, -length/2, 0), speed, fine, tool0;
+        MoveL Offs(Home, 0, -length/2, 0), speed, fine, tool0;
+        MoveL Offs(Home, 0, 0, 0), speed, fine, tool0;
+       ENDFOR
+    ENDPROC
+   PROC random_inside_iso_cube()
+        generate_random_movement;
+        MoveL Offs(Home, selected_length_x, selected_length_y, selected_length_z), speed, fine, tool0;
+        TPWrite "dx: " + ValToStr(selected_length_x) + " dy: " + ValToStr(selected_length_y) + " dz: " + ValToStr(selected_length_z);
+        !MoveL Offs(Home, 0, 0, 0), speed, fine, tool0;
+    ENDPROC
+    PROC generate_random_movement()
+        current_time := CTime(); ! Get current time as string
+        converted_to_value := StrToVal(StrPart(current_time, 7, 1), next_to_last_digit); ! Next to last digit from time ranges from 0 to 9
+        converted_to_value := StrToVal(StrPart(current_time, 8, 1), last_digit); ! Last digit from time ranges from 0 to 5
+        IF last_digit = 0 THEN last_digit := 1; ENDIF ! Correct to never get array position 0 (Rapid starts counting at 1)
+        IF next_to_last_digit = 0 THEN next_to_last_digit := 1; ENDIF ! Correct to never get array position 0 (Rapid starts counting at 1)
+        IF last_digit * 2 < 10 THEN k := last_digit * 2 + 1; ELSE k:= next_to_last_digit + last_digit - 4; ENDIF ! Generate k for z coordinate, between 1 and 10
+        TPWrite "i: " + ValToStr(last_digit) + " j: " + ValToStr(next_to_last_digit) + " k: " + ValToStr(k);
+        selected_length_x := length * ratio{next_to_last_digit}; ! Always positive for the defined cube
+        selected_length_y := -length * ratio{last_digit}; ! Always negative for the defined cube
+        selected_length_z := -length * ratio{k}; ! Always negative for the defined cube
+    ENDPROC
+   PROC circle_diagonal()
+       MoveL Offs(Home, 0, -length/2, 0), speed, fine, tool0;
+       FOR i FROM 0 TO number_of_repetitions DO
+        MoveC Offs(Home, length/2, -length, -length/2), Offs(Home, length, -length/2, -length), speed, fine, tool0;
+        MoveC Offs(Home, length/2, 0, -length/2), Offs(Home, 0, -length/2, 0), speed, fine, tool0;
+       ENDFOR
+    ENDPROC
+    PROC prepare_for_path()
+        MoveJ Home, speed, fine, tool0;
+    ENDPROC
+    PROC test_point()
+        MoveJ Offs(Home, length/3, length/4, -length/2), speed, fine, tool0;
+        MoveJ E8, speed, fine, tool0;
+        MoveJ E4, speed, fine, tool0;
+    ENDPROC
+    PROC move_joint_1_to_zero()
+        current_joints := CJointT();
+        current_joints.robax.rax_1 := 0;
+        zero_pose := CalcRobT(current_joints, tool0);
+        MoveJ zero_pose, speed, fine, tool0;
+    ENDPROC
+    PROC move_joint_2_to_zero()
+        current_joints := CJointT();
+        current_joints.robax.rax_2 := 0;
+        zero_pose := CalcRobT(current_joints, tool0);
+        MoveJ zero_pose, speed, fine, tool0;
+    ENDPROC
+    PROC move_joint_3_to_zero()
+        current_joints := CJointT();
+        current_joints.robax.rax_3 := 0;
+        zero_pose := CalcRobT(current_joints, tool0);
+        MoveJ zero_pose, speed, fine, tool0;
+    ENDPROC
+    PROC move_joint_4_to_zero()
+        current_joints := CJointT();
+        current_joints.robax.rax_4 := 0;
+        zero_pose := CalcRobT(current_joints, tool0);
+        MoveJ zero_pose, speed, fine, tool0;
+    ENDPROC
+    PROC move_joint_5_to_zero()
+        current_joints := CJointT();
+        current_joints.robax.rax_5 := 0;
+        zero_pose := CalcRobT(current_joints, tool0);
+        MoveJ zero_pose, speed, fine, tool0;
+    ENDPROC
+    PROC move_joint_6_to_zero()
+        current_joints := CJointT();
+        current_joints.robax.rax_6 := 0;
+        zero_pose := CalcRobT(current_joints, tool0);
+        MoveJ zero_pose, speed, fine, tool0;
+    ENDPROC
+    PROC move_joint_1_to_second_zero()
+        current_joints := CJointT();
+        current_joints.robax.rax_1 := -90;
+        zero_pose := CalcRobT(current_joints, tool0);
+        MoveJ zero_pose, speed, fine, tool0;
+    ENDPROC
+ENDMODULE
+hat Kontextmenü
