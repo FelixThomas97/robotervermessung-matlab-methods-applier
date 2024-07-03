@@ -1,8 +1,11 @@
 clear
-filename = 'squares_isodiagonalA&B_300Hz_v2500_1.csv';
-% filename = 'record_20240702_153511_squares_isodiagonalA&B_final.csv';
-filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv';
+% filename = 'squares_isodiagonalA&B_300Hz_v2500_1.csv';
+filename = 'record_20240702_153511_squares_isodiagonalA&B_final.csv';
+% filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv';
 data = importfile_vicon_abb_sync(filename);
+
+% Wenn die Transformation anhand der Timestamps erfolgen soll (Sonst über Ereignisse und Stützpunkte)!
+sync_time = false;
 
 % Löschen nicht benötigten Timesstamps
 data.sec =[];
@@ -18,7 +21,7 @@ data_timestamps = data{:,1};
 
 %%% VICON DATEN %%%
 
-if events_true == false
+if events == false
     % Umrechnen der Vicon Daten in mm (in den neueren Daten mit den Ereingnisse wurde diese schon umgerechnet)
     data{:,2:4} = data{:,2:4}*1000;
     data{:,9:12} = data{:,9:12}*1000;
@@ -60,7 +63,7 @@ if length(vicon_velocity) > length(vicon_positions)
 end
 
 % Array mit allen Vicon Daten
-data_vicon = [vicon_timestamps vicon_pose vicon_velocity vicon_accel];
+vicon = [vicon_timestamps vicon_pose vicon_velocity vicon_accel];
 
 clear clean_NaN filename vicon_pose
 
@@ -89,7 +92,7 @@ idx_abb_jointstates = idx_not_nan.*counter;
 idx_abb_jointstates(idx_not_nan==0) = [];
 
 % Wenn Daten Ereignisse beinhalten (neue Daten)
-if events_true == true
+if events == true
     idx_not_nan = ~isnan(data.ap_x);
     counter = (1:1:size(data,1))';
     idx_abb_events = idx_not_nan.*counter;
@@ -100,24 +103,23 @@ clear idx_not_nan counter
 
 
 % Initialisierung eines Arrays für alle Daten
-data_abb = zeros(length(idx_abb_positions),15);
-
-if events_true
-    data_abb = zeros(length(idx_abb_positions),18);
+abb = zeros(length(idx_abb_positions),15);
+if events == true
+    abb = zeros(length(idx_abb_positions),18);
 end
-%%
+
 % Zeitstempel (umgerechnet und wo Positionsdaten vorliegen) - alle Werte
-data_abb(:,1) = data_timestamps(idx_abb_positions);
+abb(:,1) = data_timestamps(idx_abb_positions);
 % Frequenz in der Positionen ausgegeben werden
-freq_abb = length(data_abb(:,1))/(data_abb(end,1)-data_abb(1,1));
+freq_abb = length(abb(:,1))/(abb(end,1)-abb(1,1));
 % Position - alle Werte
-data_abb(:,2:4) = data_(idx_abb_positions(:),25:27);
+abb(:,2:4) = data_(idx_abb_positions(:),25:27);
 % Orientierung - erster Wert
-data_abb(1,5:8) = data_(idx_abb_orientation(1),28:31);
+abb(1,5:8) = data_(idx_abb_orientation(1),28:31);
 % Geschwindigkeit - erster Wert
-data_abb(1,9) = data_(idx_abb_velocity(1),32);
+abb(1,9) = data_(idx_abb_velocity(1),32);
 % Joint States - erster Wert
-data_abb(1,10:15) = data_(idx_abb_jointstates(1),33:38);
+abb(1,10:15) = data_(idx_abb_jointstates(1),33:38);
 
 
 %% Füllen der Spalten der ABB Matrix für alle Positionsdaten: 
@@ -125,7 +127,7 @@ data_abb(1,10:15) = data_(idx_abb_jointstates(1),33:38);
 
 % Orientierung
 search_term = idx_abb_orientation;
-for i = 2:length(data_abb)-1
+for i = 2:length(abb)-1
     
     % Vor jedem Durchlauf false setzen
     is_point = false;
@@ -140,21 +142,21 @@ for i = 2:length(data_abb)-1
         % Wenn ja füge den Wert in data_abb hinzu
         if ismember(idx,search_term)
             idx_from_idx = find(search_term==idx);
-            data_abb(i,5:8) = data_(search_term(idx_from_idx),28:31);
+            abb(i,5:8) = data_(search_term(idx_from_idx),28:31);
             is_point = true;
         end
     end
     % Wenn Index nicht vorkommt nimm den voherigen Wert
     if is_point == false
-        data_abb(i,5:8) = data_abb(i-1,5:8);
+        abb(i,5:8) = abb(i-1,5:8);
     end
 end
 % letzten Wert noch gleich vorletzten Wert setzen
-data_abb(end,5:8) = data_abb(end-1,5:8);
+abb(end,5:8) = abb(end-1,5:8);
 
 % Geschwindigkeit und Joint-States genau so wie bei Orientierung
 search_term = idx_abb_velocity;
-for i = 2:length(data_abb)-1  
+for i = 2:length(abb)-1  
     is_point = false;
     idx1 = idx_abb_positions(i);
     idx2 = idx_abb_positions(i+1) - 1;
@@ -163,18 +165,18 @@ for i = 2:length(data_abb)-1
         idx = idx_chain(j);
         if ismember(idx,search_term)
             idx_from_idx = find(search_term==idx);
-            data_abb(i,9) = data_(search_term(idx_from_idx),32);
+            abb(i,9) = data_(search_term(idx_from_idx),32);
             is_point = true;
         end
     end
     if is_point == false
-        data_abb(i,9) = data_abb(i-1,9);
+        abb(i,9) = abb(i-1,9);
     end
 end
-data_abb(end,9) = data_abb(end-1,9);
+abb(end,9) = abb(end-1,9);
 
 search_term = idx_abb_jointstates;
-for i = 2:length(data_abb)-1  
+for i = 2:length(abb)-1  
     is_point = false;
     idx1 = idx_abb_positions(i);
     idx2 = idx_abb_positions(i+1) - 1;
@@ -183,42 +185,39 @@ for i = 2:length(data_abb)-1
         idx = idx_chain(j);
         if ismember(idx,search_term)
             idx_from_idx = find(search_term==idx);
-            data_abb(i,10:15) = data_(search_term(idx_from_idx),33:38);
+            abb(i,10:15) = data_(search_term(idx_from_idx),33:38);
             is_point = true;
         end
     end
     if is_point == false
-        data_abb(i,10:15) = data_abb(i-1,10:15);
+        abb(i,10:15) = abb(i-1,10:15);
     end
 end
-data_abb(end,10:15) = data_abb(end-1,10:15);
+abb(end,10:15) = abb(end-1,10:15);
 
 % Wenn neue Daten mit Ereignissen diese in Matrix einfügen
-if events_true == true
+if events == true
     events_positions = data_(idx_abb_events,39:41);
     events_timestamps = data_timestamps(idx_abb_events,1);
     idx_time_events = zeros(length(events_timestamps),1);
+    % Füge die Ereignisse an der Stelle ein wo die Timestamps am nächsten beieinander liegen 
     for i = 1:length(events_timestamps)
-        diff = abs(data_abb(:,1) - events_timestamps(i));
+        diff = abs(abb(:,1) - events_timestamps(i));
         [~,idx] = min(diff);
         idx_time_events(i) = idx;
     end
-    
-    data_abb(idx_time_events,16:18) = data_(idx_abb_events,39:41);
-    aa = find(data_abb(data_abb ~= 0),39);
-    %data_abb(idx_abb_events,16:18) = data_(idx_abb_events,39:41);
-    abb_events = data_abb(:,16:18);
+    abb(idx_time_events,16:18) = data_(idx_abb_events,39:41);
+    abb_events = abb(:,16:18);
 end
 
 % Daten in einzelne Vektoren aufteilen
-abb_timestamps = data_abb(:,1);
-abb_positions = data_abb(:,2:4);
-abb_orientation = data_abb(:,5:8);
-abb_velocity = data_abb(:,9);
-abb_jointstats = data_abb(:,10:15);
+abb_timestamps = abb(:,1);
+abb_positions = abb(:,2:4);
+abb_orientation = abb(:,5:8);
+abb_velocity = abb(:,9);
+abb_jointstats = abb(:,10:15);
 
-
-clear idx idx1 idx2 idx_chain idx_from_idx is_point j i search_term data_ vicon_pose
+clear idx idx1 idx2 idx_chain idx_from_idx is_point j i search_term data_ vicon_pose diff
 
 % % Ausgabe der maximalen Geschwindigkeit
 % velocity_max_vicon = max(vicon_velocity(:,4));
@@ -240,18 +239,10 @@ p1 = mean(p1);
 % Berechnung erneut mit Standabweichung
 vicon_get_basepoints(vicon_positions, min_index_distance,stdevnorm_p1);
 
-%% Plotten
-% figure('Color','white'); 
-% % plot3(vicon_positions(:,1),vicon_positions(:,2),vicon_positions(:,3),'b',LineWidth=2)
-% plot3(abb_positions(:,1),abb_positions(:,2),abb_positions(:,3),'b',LineWidth=2)
-% hold on
-% plot3(abb_transformed(:,1),abb_transformed(:,2),abb_transformed(:,3),'r',LineWidth=2)
-% 
-% 
-% 
-% % plot3(abb_positions(:,1),abb_positions(:,2),abb_positions(:,3),'b',LineWidth=2)
-% % axis equal
-% 
+% clear min_index_distance stdevnorm_p1 stdev_p1
+
+
+%% Plotten 
 
 
 % points = vicon_base_points;
@@ -267,9 +258,6 @@ vicon_get_basepoints(vicon_positions, min_index_distance,stdevnorm_p1);
 
 %% Transformation der Koordinaten von Vicon-System zu Abb-System
 
-% Wenn die Transformation anhand der Timestamps erfolgen soll!
-sync_time = true;
-
 if sync_time == true 
     % Ermittlung von Referenzpunkten für die Koordinatentransformation
     % --> hier anhand von Punkten deren Timestamps sehr nahe beieinander liegen
@@ -282,17 +270,33 @@ if sync_time == true
         end
     end
 
+    % Erstellen der Transformationsvektoren (Referenzpunkte)
+    abb_reference = abb_positions(sync_indizes(:,1),:);
+    vicon_reference = vicon_positions(sync_indizes(:,2),:);
+
 % Wenn die Transformation anhand der ermittelten Stützpunkte erfolgen soll
 else
-    sync_indizes = zeros(length(idx_vicon_base_points),2);
-    sync_
+
+    % Ermittlung des Startpunkts im ABB Koordinatensystem über Mittelwert
+    diffs = diff(abb_positions);
+    dists = sqrt(sum(diffs.^2, 2));
+    
+    % Erste Index der Distanz der größer ist
+    first_idx = find(dists > 0.05,1);
+    p1_abb = mean(abb_positions(1:first_idx-1,:));
+
+    % Erstellen der Transformationsvektoren (Referenzpunkte)
+    abb_reference = [p1_abb; events_positions];
+    % abb_reference = events_positions;
+    vicon_reference = vicon_base_points;
+
+    % Überprüfen der Dimensionen der Transformationsvektoren
+    if ~isequal(size(abb_reference), size(vicon_reference))
+        error('Die Referenzpunkte für die Koordinatentransformation haben eine unterschiedliche Anzahl an Elementen! Setzen Sie den Paramater sync_time = true oder passen Sie die Anzahl der vicon_base_points oder events_positions an!');
+    end
+    
 end
-
-
-
-% Punkte die für Koordinatentransformation genutzt werden
-abb_reference = abb_positions(sync_indizes(:,1),:);
-vicon_reference = vicon_positions(sync_indizes(:,2),:);
+%%
 
 % Mittelwerte der Punkte
 abb_mean = mean(abb_reference);
@@ -332,26 +336,44 @@ end
 diffs_mean = mean(a);
 [diffs_max, diffs_idx_max] = max(abs(a));
 
+[eucl_interpolation,eucl_distances,eucl_t] = distance2curve(vicon_transformed,abb_positions,'linear');
+eucl_mean = mean(eucl_distances);
+eucl_max = max(eucl_distances);
 
 %%
-% figure;
-% plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3))
-% hold on
-% plot3(abb_reference(:,1),abb_reference(:,2),abb_reference(:,3))
-% % plot3(abb_positions(:,1),abb_positions(:,2),abb_positions(:,3))
-% plot3(vicon_reference_transformed(:,1),vicon_reference_transformed(:,2),vicon_reference_transformed(:,3))
-% 
-% % Dazuplotten der maximalen Abstände
-% plot3(abb_reference(diffs_idx_max,1),abb_reference(diffs_idx_max,2),abb_reference(diffs_idx_max,3),'or',LineWidth=3)
-% plot3(vicon_reference_transformed(diffs_idx_max,1),vicon_reference_transformed(diffs_idx_max,2),vicon_reference_transformed(diffs_idx_max,3),'ob',LineWidth=3)
-% legend('vicon transformed','abb','vicon')
-% view(2)
+figure;
+plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3))
+hold on
+plot3(abb_reference(:,1),abb_reference(:,2),abb_reference(:,3))
+% plot3(abb_positions(:,1),abb_positions(:,2),abb_positions(:,3))
+plot3(vicon_reference_transformed(:,1),vicon_reference_transformed(:,2),vicon_reference_transformed(:,3))
 
-%% 
-% filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv';
-% test1 = importfile_vicon_abb_sync(filename);
+% Dazuplotten der maximalen Abstände
+plot3(abb_reference(diffs_idx_max,1),abb_reference(diffs_idx_max,2),abb_reference(diffs_idx_max,3),'or',LineWidth=3)
+plot3(vicon_reference_transformed(diffs_idx_max,1),vicon_reference_transformed(diffs_idx_max,2),vicon_reference_transformed(diffs_idx_max,3),'ob',LineWidth=3)
+legend('vicon transformed','abb','vicon')
+view(2)
+
+% % VERGLEICH DER STÜTZPUNKTE UND OB DIESE ZUSAMMENPASSEN
+% % Anfangs und Endpunkt der Stützpunkte bei ABB und transformierten Vicon-Daten
+% figure('Color','white'); 
+% plot3(events_positions(:,1),events_positions(:,2),events_positions(:,3),'k')
+% hold on
+% plot3(abb_positions(1,1),abb_positions(1,2),abb_positions(1,3),'og',LineWidth=3)
+% plot3(events_positions(1,1),events_positions(1,2),events_positions(1,3),'ok',LineWidth=3);
+% plot3(events_positions(end,1),events_positions(end,2),events_positions(end,3),'or',LineWidth=3);
+% axis equal
 % 
-% filename = 'squares_isodiagonalA&B_300Hz_v1500_2.csv';
-% test2 = importfile_vicon_abb_sync(filename);
+% figure('Color','white'); 
+% plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k')
+% hold on
+% plot3(vicon_transformed(1,1),vicon_transformed(1,2),vicon_transformed(1,3),'ok',LineWidth=3);
+% plot3(vicon_transformed(end,1),vicon_transformed(end,2),vicon_transformed(end,3),'or',LineWidth=3);
+% axis equal
 % 
-% test3 = importfile(filename);
+% figure('Color','white'); 
+% plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k')
+% hold on
+% plot3(vicon_transformed(idx_vicon_base_points(1),1),vicon_transformed(idx_vicon_base_points(1),2),vicon_transformed(idx_vicon_base_points(1),3),'ok',LineWidth=3);
+% plot3(vicon_transformed(idx_vicon_base_points(end),1),vicon_transformed(idx_vicon_base_points(end),2),vicon_transformed(idx_vicon_base_points(end),3),'or',LineWidth=3);
+% axis equal

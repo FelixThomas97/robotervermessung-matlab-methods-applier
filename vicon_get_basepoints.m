@@ -9,7 +9,6 @@ function vicon_get_basepoints(positions, min_index_distance, threshold)
 % min_index_distance = 125;
 % 
 % threshold = 0.1;
-
 %%
 if nargin < 3
     % Oberer Grenzwert des Abstands für den Punkte als Gleich angenommen werden
@@ -92,6 +91,7 @@ assignin('base',"vicon_base_points",points);
 
 
 end
+
 %% Plotten
 % points(:,1) = points(:,1)+1;
 % 

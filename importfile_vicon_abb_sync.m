@@ -30,8 +30,8 @@ function data = importfile_vicon_abb_sync(filename, dataLines)
         opts.ExtraColumnsRule = "ignore";
         opts.EmptyLineRule = "read";
 
-        events_true = false;
-        assignin('base',"events_true",events_true);
+        events = false;
+        assignin('base',"events",events);
         
     elseif numCols == 43
         opts = delimitedTextImportOptions("NumVariables", 43);
@@ -48,8 +48,8 @@ function data = importfile_vicon_abb_sync(filename, dataLines)
         opts.ExtraColumnsRule = "ignore";
         opts.EmptyLineRule = "read";
 
-        events_true = true;
-        assignin('base',"events_true",events_true);
+        events = true;
+        assignin('base',"events",events);
 
     else
         error('Unerwartete Anzahl an Spalten in der Datei!');
