@@ -29,6 +29,9 @@ function data = importfile_vicon_abb_sync(filename, dataLines)
         % Specify file level properties
         opts.ExtraColumnsRule = "ignore";
         opts.EmptyLineRule = "read";
+
+        events_true = false;
+        assignin('base',"events_true",events_true);
         
     elseif numCols == 43
         opts = delimitedTextImportOptions("NumVariables", 43);

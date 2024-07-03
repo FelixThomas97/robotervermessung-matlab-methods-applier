@@ -1,21 +1,20 @@
-% function vicon_get_basepoints(positions, min_index_distance, threshold)
+function vicon_get_basepoints(positions, min_index_distance, threshold)
 %% Zum Testen 
 % % clear;
 % % load vicon_data_120hz.mat
 % 
-positions = vicon_positions/1000;
-
-% Schrittweite der Indizes für die nach gleichen Punkten gesucht wird
-min_index_distance = 60;
-
-threshold = 0.1;
+% positions = vicon_positions/1000;
+% 
+% % Schrittweite der Indizes für die nach gleichen Punkten gesucht wird
+% min_index_distance = 125;
+% 
+% threshold = 0.1;
 
 %%
-
-% if nargin < 3
-%     % Oberer Grenzwert des Abstands für den Punkte als Gleich angenommen werden
-%     threshold = 0.1;
-% end
+if nargin < 3
+    % Oberer Grenzwert des Abstands für den Punkte als Gleich angenommen werden
+    threshold = 0.1;
+end
 
 % Punktweise Berechnung der Abstände
 M = size(positions, 1);
@@ -59,6 +58,12 @@ indices_points = indices_points_all;
 % Indzies der Daten mit sehr geringem Abstand (gleiche Punkte)
 index_equal_points = find(dist_points_all <= threshold*5);
 
+% Fehlermeldung wenn index_equal_points leer ist, möglicherweise weil Daten
+% in falscher Einheit vorliegen. 
+if isempty(index_equal_points)
+    error('Keine Übereinstimmung in den Positionen gefunden. Stellen sie sicher, dass die Positionsdaten in der richtigen Einheit vorliegen (mm)');
+end
+
 % Sicherstellen, dass der erste und letzte relevante Punkt nicht gelöscht wird
 a = index_equal_points(1:end-1)+1;
 index_deleted_points = [index_equal_points(1,:); a];
@@ -79,24 +84,24 @@ points(index_deleted_points,:) = [];
 % Letzer Abstand nicht relevant
 dist_points(end) = [];
 
-%% Laden in Workspace 
-% 
-% assignin('base',"idx_vicon_base_points",indices_points);
-% assignin('base','dist_vicon_base_points',dist_points);
-% assignin('base',"vicon_base_points",points);
-% 
+% Laden in Workspace 
 
-% end
+assignin('base',"idx_vicon_base_points",indices_points);
+assignin('base','dist_vicon_base_points',dist_points);
+assignin('base',"vicon_base_points",points);
+
+
+end
 %% Plotten
-points(:,1) = points(:,1)+1;
-
-figure('Color','white'); 
+% points(:,1) = points(:,1)+1;
+% 
+% figure('Color','white'); 
 % plot3(vicon_positions(:,1),vicon_positions(:,2),vicon_positions(:,3),'r',LineWidth=2)
-hold on
-plot3(points(:,1),points(:,2),points(:,3),'b',LineWidth=2)
-axis equal
-plot3(points(1,1),points(1,2),points(1,3),'og',LineWidth=2)
-plot3(points(end,1),points(end,2),points(end,3),'ok',LineWidth=5)
-
-clear indices_points_all indices_threshold idx last_saved_index
-clear  diffs M 
+% hold on
+% plot3(points(:,1),points(:,2),points(:,3),'b',LineWidth=2)
+% axis equal
+% plot3(points(1,1),points(1,2),points(1,3),'og',LineWidth=2)
+% plot3(points(end,1),points(end,2),points(end,3),'ok',LineWidth=5)
+% 
+% clear indices_points_all indices_threshold idx last_saved_index
+% clear  diffs M 

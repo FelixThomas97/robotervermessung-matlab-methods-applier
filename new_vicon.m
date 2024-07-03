@@ -1,5 +1,6 @@
 clear
-% filename = 'squares_isodiagonalA&B_300Hz_v2500_1.csv';
+filename = 'squares_isodiagonalA&B_300Hz_v2500_1.csv';
+% filename = 'record_20240702_153511_squares_isodiagonalA&B_final.csv';
 filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv';
 data = importfile_vicon_abb_sync(filename);
 
@@ -17,10 +18,12 @@ data_timestamps = data{:,1};
 
 %%% VICON DATEN %%%
 
-% Umrechnen der Vicon Daten in mm
-data{:,2:4} = data{:,2:4}*1000;
-data{:,9:12} = data{:,9:12}*1000;
-data{:,17:20} = data{:,17:20}*1000;
+if events_true == false
+    % Umrechnen der Vicon Daten in mm (in den neueren Daten mit den Ereingnisse wurde diese schon umgerechnet)
+    data{:,2:4} = data{:,2:4}*1000;
+    data{:,9:12} = data{:,9:12}*1000;
+    data{:,17:20} = data{:,17:20}*1000;
+end
 
 % Daten auslesen
 vicon_pose = data{:,2:8};
@@ -85,11 +88,24 @@ counter = (1:1:size(data,1))';
 idx_abb_jointstates = idx_not_nan.*counter;
 idx_abb_jointstates(idx_not_nan==0) = [];
 
+% Wenn Daten Ereignisse beinhalten (neue Daten)
+if events_true == true
+    idx_not_nan = ~isnan(data.ap_x);
+    counter = (1:1:size(data,1))';
+    idx_abb_events = idx_not_nan.*counter;
+    idx_abb_events(idx_not_nan==0) = [];
+end
+
 clear idx_not_nan counter
+
 
 % Initialisierung eines Arrays für alle Daten
 data_abb = zeros(length(idx_abb_positions),15);
 
+if events_true
+    data_abb = zeros(length(idx_abb_positions),18);
+end
+%%
 % Zeitstempel (umgerechnet und wo Positionsdaten vorliegen) - alle Werte
 data_abb(:,1) = data_timestamps(idx_abb_positions);
 % Frequenz in der Positionen ausgegeben werden
@@ -103,6 +119,7 @@ data_abb(1,9) = data_(idx_abb_velocity(1),32);
 % Joint States - erster Wert
 data_abb(1,10:15) = data_(idx_abb_jointstates(1),33:38);
 
+
 %% Füllen der Spalten der ABB Matrix für alle Positionsdaten: 
 % Ausgangslage ist, dass die Positionesdaten am meisten Zellen besitzen 
 
@@ -110,7 +127,7 @@ data_abb(1,10:15) = data_(idx_abb_jointstates(1),33:38);
 search_term = idx_abb_orientation;
 for i = 2:length(data_abb)-1
     
-    % Vor jedem Durchlauf false seltzen
+    % Vor jedem Durchlauf false setzen
     is_point = false;
     % Indizes der aufeinander folgenden Positionsdaten
     idx1 = idx_abb_positions(i);
@@ -176,12 +193,30 @@ for i = 2:length(data_abb)-1
 end
 data_abb(end,10:15) = data_abb(end-1,10:15);
 
+% Wenn neue Daten mit Ereignissen diese in Matrix einfügen
+if events_true == true
+    events_positions = data_(idx_abb_events,39:41);
+    events_timestamps = data_timestamps(idx_abb_events,1);
+    idx_time_events = zeros(length(events_timestamps),1);
+    for i = 1:length(events_timestamps)
+        diff = abs(data_abb(:,1) - events_timestamps(i));
+        [~,idx] = min(diff);
+        idx_time_events(i) = idx;
+    end
+    
+    data_abb(idx_time_events,16:18) = data_(idx_abb_events,39:41);
+    aa = find(data_abb(data_abb ~= 0),39);
+    %data_abb(idx_abb_events,16:18) = data_(idx_abb_events,39:41);
+    abb_events = data_abb(:,16:18);
+end
+
 % Daten in einzelne Vektoren aufteilen
 abb_timestamps = data_abb(:,1);
 abb_positions = data_abb(:,2:4);
 abb_orientation = data_abb(:,5:8);
 abb_velocity = data_abb(:,9);
 abb_jointstats = data_abb(:,10:15);
+
 
 clear idx idx1 idx2 idx_chain idx_from_idx is_point j i search_term data_ vicon_pose
 
@@ -299,18 +334,18 @@ diffs_mean = mean(a);
 
 
 %%
-figure;
-plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3))
-hold on
-plot3(abb_reference(:,1),abb_reference(:,2),abb_reference(:,3))
-% plot3(abb_positions(:,1),abb_positions(:,2),abb_positions(:,3))
-plot3(vicon_reference_transformed(:,1),vicon_reference_transformed(:,2),vicon_reference_transformed(:,3))
-
-% Dazuplotten der maximalen Abstände
-plot3(abb_reference(diffs_idx_max,1),abb_reference(diffs_idx_max,2),abb_reference(diffs_idx_max,3),'or',LineWidth=3)
-plot3(vicon_reference_transformed(diffs_idx_max,1),vicon_reference_transformed(diffs_idx_max,2),vicon_reference_transformed(diffs_idx_max,3),'ob',LineWidth=3)
-legend('vicon transformed','abb','vicon')
-view(2)
+% figure;
+% plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3))
+% hold on
+% plot3(abb_reference(:,1),abb_reference(:,2),abb_reference(:,3))
+% % plot3(abb_positions(:,1),abb_positions(:,2),abb_positions(:,3))
+% plot3(vicon_reference_transformed(:,1),vicon_reference_transformed(:,2),vicon_reference_transformed(:,3))
+% 
+% % Dazuplotten der maximalen Abstände
+% plot3(abb_reference(diffs_idx_max,1),abb_reference(diffs_idx_max,2),abb_reference(diffs_idx_max,3),'or',LineWidth=3)
+% plot3(vicon_reference_transformed(diffs_idx_max,1),vicon_reference_transformed(diffs_idx_max,2),vicon_reference_transformed(diffs_idx_max,3),'ob',LineWidth=3)
+% legend('vicon transformed','abb','vicon')
+% view(2)
 
 %% 
 % filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv';
