@@ -1,7 +1,7 @@
 clear
 % filename = 'squares_isodiagonalA&B_300Hz_v2500_1.csv';
-filename = 'record_20240702_153511_squares_isodiagonalA&B_final.csv';
-% filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv';
+% filename = 'record_20240702_153511_squares_isodiagonalA&B_final.csv';
+filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv';
 data = importfile_vicon_abb_sync(filename);
 
 % Wenn die Transformation anhand der Timestamps erfolgen soll (Sonst über Ereignisse und Stützpunkte)!
@@ -122,8 +122,8 @@ abb(1,9) = data_(idx_abb_velocity(1),32);
 abb(1,10:15) = data_(idx_abb_jointstates(1),33:38);
 
 
-%% Füllen der Spalten der ABB Matrix für alle Positionsdaten: 
-% Ausgangslage ist, dass die Positionesdaten am meisten Zellen besitzen 
+% Auffüllen der Spalten der ABB Matrix für alle Positionsdaten: 
+% (Positionesdaten besitzen am meisten Elemente)
 
 % Orientierung
 search_term = idx_abb_orientation;
@@ -219,11 +219,12 @@ abb_jointstats = abb(:,10:15);
 
 clear idx idx1 idx2 idx_chain idx_from_idx is_point j i search_term data_ vicon_pose diff
 
-% % Ausgabe der maximalen Geschwindigkeit
-% velocity_max_vicon = max(vicon_velocity(:,4));
-% velocity_max_abb = max(abb_velocity);
+% Ausgabe der maximalen Geschwindigkeit
+velocity_max_vicon = max(vicon_velocity(:,4));
+velocity_max_abb = max(abb_velocity);
 
-%% Koordinaten Trasformation
+
+%% Berechnung der Stützpunkte im Vicon-System
 
 % Schrittweite der Indizes für die nach gleichen Punkten gesucht wird
 min_index_distance = round(freq_vicon/2);
@@ -231,7 +232,7 @@ min_index_distance = round(freq_vicon/2);
 vicon_get_basepoints(vicon_positions, min_index_distance);
 
 % Ersten Punkt mitteln und Standabweichung 
-p1 = vicon_positions(1:idx_vicon_base_points(1),:);
+p1 = vicon_positions(1:base_points_idx(1),:);
 stdev_p1 = std(p1);
 stdevnorm_p1 = norm(stdev_p1)*10;
 p1 = mean(p1);
@@ -239,25 +240,13 @@ p1 = mean(p1);
 % Berechnung erneut mit Standabweichung
 vicon_get_basepoints(vicon_positions, min_index_distance,stdevnorm_p1);
 
-% clear min_index_distance stdevnorm_p1 stdev_p1
+% Variablen die eventuell nicht mehr benötigt werden
+clear min_index_distance stdevnorm_p1 stdev_p1 p1
 
 
-%% Plotten 
+%% Berechnung der Referenzdaten für die Koordinatenstransformation
 
-
-% points = vicon_base_points;
-% points(:,1) = points(:,1)+1000;
-% 
-% figure('Color','white'); 
-% plot3(vicon_positions(:,1),vicon_positions(:,2),vicon_positions(:,3),'r',LineWidth=2)
-% hold on
-% plot3(points(:,1),points(:,2),points(:,3),'b',LineWidth=2)
-% axis equal
-% plot3(points(1,1),points(1,2),points(1,3),'og',LineWidth=2)
-% plot3(points(end,1),points(end,2),points(end,3),'ok',LineWidth=5)
-
-%% Transformation der Koordinaten von Vicon-System zu Abb-System
-
+% Wenn die Transformation anhand (fast) synchroner Teilstamps erfolgen soll
 if sync_time == true 
     % Ermittlung von Referenzpunkten für die Koordinatentransformation
     % --> hier anhand von Punkten deren Timestamps sehr nahe beieinander liegen
@@ -274,6 +263,8 @@ if sync_time == true
     abb_reference = abb_positions(sync_indizes(:,1),:);
     vicon_reference = vicon_positions(sync_indizes(:,2),:);
 
+    clear sync_indizes 
+
 % Wenn die Transformation anhand der ermittelten Stützpunkte erfolgen soll
 else
 
@@ -284,19 +275,22 @@ else
     % Erste Index der Distanz der größer ist
     first_idx = find(dists > 0.05,1);
     p1_abb = mean(abb_positions(1:first_idx-1,:));
+    % p1_abb = [598.7 -501.1 1501.5]; % --> Testzweck
 
     % Erstellen der Transformationsvektoren (Referenzpunkte)
     abb_reference = [p1_abb; events_positions];
-    % abb_reference = events_positions;
-    vicon_reference = vicon_base_points;
+    % abb_reference = events_positions; % --> Testzweck
+    vicon_reference = base_points_vicon;
 
     % Überprüfen der Dimensionen der Transformationsvektoren
     if ~isequal(size(abb_reference), size(vicon_reference))
         error('Die Referenzpunkte für die Koordinatentransformation haben eine unterschiedliche Anzahl an Elementen! Setzen Sie den Paramater sync_time = true oder passen Sie die Anzahl der vicon_base_points oder events_positions an!');
     end
+
+    clear p1_abb diffs dists 
     
 end
-%%
+%% Transformation der Koordinaten von Vicon-System zu Abb-System
 
 % Mittelwerte der Punkte
 abb_mean = mean(abb_reference);
@@ -324,56 +318,80 @@ vicon_transformed = vicon_positions*R + T;
 
 clear U V T R H 
 
+clear abb_mean abb_centered vicon_mean vicon_centered
+
+%% Berechnungen mit den transformierten Daten
+
 % Berechnung Abweichungen der Referenzdaten
 diffs_reference = (vicon_reference_transformed-abb_reference);
-diffs_reference_norm = norm(diffs_reference)/length(diffs_reference);
 
-a = zeros(length(diffs_reference),1);
+dists_reference = zeros(length(diffs_reference),1);
 for i = 1:length(diffs_reference)
-    a(i) = norm(diffs_reference(i,:));
+    dists_reference(i) = norm(diffs_reference(i,:));
 end
 
-diffs_mean = mean(a);
-[diffs_max, diffs_idx_max] = max(abs(a));
+dists_mean = mean(dists_reference);
+[dists_max, dists_idx_max] = max(abs(dists_reference));
 
-[eucl_interpolation,eucl_distances,eucl_t] = distance2curve(vicon_transformed,abb_positions,'linear');
-eucl_mean = mean(eucl_distances);
-eucl_max = max(eucl_distances);
+[~,eucl_dists,~] = distance2curve(vicon_transformed,abb_positions,'linear');
+eucl_mean = mean(eucl_dists);
+eucl_max = max(eucl_dists);
 
-%%
-figure;
+clear diffs_reference eucl_dists i 
+
+zeig_plots = false;
+
+%% Plot zur Überprüfung der Korrektheit der berechneten Stützpunkte
+if zeig_plots
+points = base_points_vicon;
+points(:,1) = points(:,1)+1000;
+
+figure('Color','white'); 
+plot3(vicon_positions(:,1),vicon_positions(:,2),vicon_positions(:,3),'r',LineWidth=2)
+hold on
+plot3(points(:,1),points(:,2),points(:,3),'b',LineWidth=2)
+axis equal
+plot3(points(1,1),points(1,2),points(1,3),'og',LineWidth=2)
+plot3(points(end,1),points(end,2),points(end,3),'ok',LineWidth=5)
+
+%% Plot der transformierten Vicon-Daten ins Abb-System 
+figure('Color','white');
 plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3))
 hold on
 plot3(abb_reference(:,1),abb_reference(:,2),abb_reference(:,3))
 % plot3(abb_positions(:,1),abb_positions(:,2),abb_positions(:,3))
-plot3(vicon_reference_transformed(:,1),vicon_reference_transformed(:,2),vicon_reference_transformed(:,3))
+% plot3(vicon_reference_transformed(:,1),vicon_reference_transformed(:,2),vicon_reference_transformed(:,3))
 
 % Dazuplotten der maximalen Abstände
-plot3(abb_reference(diffs_idx_max,1),abb_reference(diffs_idx_max,2),abb_reference(diffs_idx_max,3),'or',LineWidth=3)
-plot3(vicon_reference_transformed(diffs_idx_max,1),vicon_reference_transformed(diffs_idx_max,2),vicon_reference_transformed(diffs_idx_max,3),'ob',LineWidth=3)
+plot3(abb_reference(dists_idx_max,1),abb_reference(dists_idx_max,2),abb_reference(dists_idx_max,3),'or',LineWidth=3)
+plot3(vicon_reference_transformed(dists_idx_max,1),vicon_reference_transformed(dists_idx_max,2),vicon_reference_transformed(dists_idx_max,3),'ob',LineWidth=3)
 legend('vicon transformed','abb','vicon')
 view(2)
+axis equal
 
-% % VERGLEICH DER STÜTZPUNKTE UND OB DIESE ZUSAMMENPASSEN
-% % Anfangs und Endpunkt der Stützpunkte bei ABB und transformierten Vicon-Daten
-% figure('Color','white'); 
-% plot3(events_positions(:,1),events_positions(:,2),events_positions(:,3),'k')
-% hold on
-% plot3(abb_positions(1,1),abb_positions(1,2),abb_positions(1,3),'og',LineWidth=3)
-% plot3(events_positions(1,1),events_positions(1,2),events_positions(1,3),'ok',LineWidth=3);
-% plot3(events_positions(end,1),events_positions(end,2),events_positions(end,3),'or',LineWidth=3);
-% axis equal
-% 
-% figure('Color','white'); 
-% plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k')
-% hold on
-% plot3(vicon_transformed(1,1),vicon_transformed(1,2),vicon_transformed(1,3),'ok',LineWidth=3);
-% plot3(vicon_transformed(end,1),vicon_transformed(end,2),vicon_transformed(end,3),'or',LineWidth=3);
-% axis equal
-% 
-% figure('Color','white'); 
-% plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k')
-% hold on
-% plot3(vicon_transformed(idx_vicon_base_points(1),1),vicon_transformed(idx_vicon_base_points(1),2),vicon_transformed(idx_vicon_base_points(1),3),'ok',LineWidth=3);
-% plot3(vicon_transformed(idx_vicon_base_points(end),1),vicon_transformed(idx_vicon_base_points(end),2),vicon_transformed(idx_vicon_base_points(end),3),'or',LineWidth=3);
-% axis equal
+%% Vergleich der Stützpunkte und ob diese zusammen passen
+% Anfangs und Endpunkt der Stützpunkte bei ABB und transformierten Vicon-Daten
+figure('Color','white'); 
+plot3(events_positions(:,1),events_positions(:,2),events_positions(:,3),'k')
+hold on
+plot3(abb_positions(1,1),abb_positions(1,2),abb_positions(1,3),'og',LineWidth=3)
+plot3(events_positions(1,1),events_positions(1,2),events_positions(1,3),'ok',LineWidth=3);
+plot3(events_positions(end,1),events_positions(end,2),events_positions(end,3),'or',LineWidth=3);
+axis equal
+
+figure('Color','white'); 
+plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k')
+hold on
+plot3(vicon_transformed(1,1),vicon_transformed(1,2),vicon_transformed(1,3),'ok',LineWidth=3);
+plot3(vicon_transformed(end,1),vicon_transformed(end,2),vicon_transformed(end,3),'or',LineWidth=3);
+axis equal
+
+figure('Color','white'); 
+plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k')
+hold on
+plot3(vicon_transformed(base_points_idx(1),1),vicon_transformed(base_points_idx(1),2),vicon_transformed(base_points_idx(1),3),'ok',LineWidth=3);
+plot3(vicon_transformed(base_points_idx(end),1),vicon_transformed(base_points_idx(end),2),vicon_transformed(base_points_idx(end),3),'or',LineWidth=3);
+axis equal
+
+%%
+end

@@ -84,10 +84,9 @@ points(index_deleted_points,:) = [];
 dist_points(end) = [];
 
 % Laden in Workspace 
-
-assignin('base',"idx_vicon_base_points",indices_points);
-assignin('base','dist_vicon_base_points',dist_points);
-assignin('base',"vicon_base_points",points);
+assignin('base',"base_points_idx",indices_points);
+assignin('base','base_points_dist',dist_points);
+assignin('base',"base_points_vicon",points);
 
 
 end
