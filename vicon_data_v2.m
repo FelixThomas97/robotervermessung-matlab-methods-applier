@@ -9,6 +9,9 @@ p = 0.03;
 % Faktor für Interpolationspunkte der Sollbahn (1 = Anzahl Ist-Bahn)
 keypoints_faktor = 1;
 
+% Maximale Distanz zwischen 2 Punkten der Isttrajektorie
+threshold = 0.1;
+
 % Daten separieren, da NaN in verschiedenen Zeilen auftreten
 data_time = data_table{:,1:3};
 data_pose = data_table{:,4:10};
@@ -222,7 +225,7 @@ for i = 1:1:num_seg
     % Ermittlung der normierten Richtungsvektoren für die 50 Punkte
     selection_direction = zeros(length(selection),3);
     selection_norm_direction = zeros(length(selection),3);
-    for j = 1:length(selection)
+    for j = 1:size(selection,1)
         selection_direction(j,:) = selection(j,:) - trajectory_ist(idx1,:);
         norm_ = norm(selection_direction(j,:));
         if norm_ ~= 0
@@ -359,6 +362,7 @@ end
 
 figure;
 hold on
+axis equal
 plot3(segments_ist{1}(:,1),segments_ist{1}(:,2),segments_ist{1}(:,3),'r')% spline
 plot3(segments_ist{2}(:,1),segments_ist{2}(:,2),segments_ist{2}(:,3),'b')
 plot3(segments_ist{3}(:,1),segments_ist{3}(:,2),segments_ist{3}(:,3),'b')

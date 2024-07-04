@@ -7,6 +7,12 @@ data = importfile_vicon_abb_sync(filename);
 % Wenn die Transformation anhand der Timestamps erfolgen soll (Sonst über Ereignisse und Stützpunkte)!
 sync_time = false;
 
+% Plots an
+zeig_plots = true;
+
+% Anzahl der Punkte der Sollbahn (falls generiert werden soll)
+keypoints_faktor = 1;
+
 % Löschen nicht benötigten Timesstamps
 data.sec =[];
 data.nanosec = [];
@@ -241,7 +247,7 @@ p1 = mean(p1);
 vicon_get_basepoints(vicon_positions, min_index_distance,stdevnorm_p1);
 
 % Variablen die eventuell nicht mehr benötigt werden
-clear min_index_distance stdevnorm_p1 stdev_p1 p1
+% clear min_index_distance stdevnorm_p1 stdev_p1 p1
 
 
 %% Berechnung der Referenzdaten für die Koordinatenstransformation
@@ -339,20 +345,31 @@ eucl_max = max(eucl_dists);
 
 clear diffs_reference eucl_dists i 
 
-zeig_plots = false;
+%% Vicon Zerteilen und Sollbahngenerierung
+
+% Eventuell die Zerteilung schon vor der Koordinatentransformation
+
+% GGF Funktion machen für Workspace clean...
+
+generate_soll_vicon(vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
+
+
+%%
+if zeig_plots
+
 
 %% Plot zur Überprüfung der Korrektheit der berechneten Stützpunkte
-if zeig_plots
-points = base_points_vicon;
-points(:,1) = points(:,1)+1000;
-
-figure('Color','white'); 
-plot3(vicon_positions(:,1),vicon_positions(:,2),vicon_positions(:,3),'r',LineWidth=2)
-hold on
-plot3(points(:,1),points(:,2),points(:,3),'b',LineWidth=2)
-axis equal
-plot3(points(1,1),points(1,2),points(1,3),'og',LineWidth=2)
-plot3(points(end,1),points(end,2),points(end,3),'ok',LineWidth=5)
+% points = base_points_vicon;
+% points(:,1) = points(:,1)+1000;
+% 
+% figure('Color','white'); 
+% plot3(vicon_positions(:,1),vicon_positions(:,2),vicon_positions(:,3),'r',LineWidth=2)
+% hold on
+% plot3(points(:,1),points(:,2),points(:,3),'b',LineWidth=2)
+% axis equal
+% plot3(points(1,1),points(1,2),points(1,3),'og',LineWidth=2)
+% plot3(points(end,1),points(end,2),points(end,3),'ok',LineWidth=5)
+% xlabel('x'); ylabel('y'); zlabel('z');
 
 %% Plot der transformierten Vicon-Daten ins Abb-System 
 figure('Color','white');
@@ -367,6 +384,7 @@ plot3(abb_reference(dists_idx_max,1),abb_reference(dists_idx_max,2),abb_referenc
 plot3(vicon_reference_transformed(dists_idx_max,1),vicon_reference_transformed(dists_idx_max,2),vicon_reference_transformed(dists_idx_max,3),'ob',LineWidth=3)
 legend('vicon transformed','abb','vicon')
 view(2)
+xlabel('x'); ylabel('y'); zlabel('z');
 axis equal
 
 %% Vergleich der Stützpunkte und ob diese zusammen passen
@@ -377,20 +395,23 @@ hold on
 plot3(abb_positions(1,1),abb_positions(1,2),abb_positions(1,3),'og',LineWidth=3)
 plot3(events_positions(1,1),events_positions(1,2),events_positions(1,3),'ok',LineWidth=3);
 plot3(events_positions(end,1),events_positions(end,2),events_positions(end,3),'or',LineWidth=3);
+xlabel('x'); ylabel('y'); zlabel('z');
 axis equal
-
+%%
 figure('Color','white'); 
 plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k')
 hold on
 plot3(vicon_transformed(1,1),vicon_transformed(1,2),vicon_transformed(1,3),'ok',LineWidth=3);
 plot3(vicon_transformed(end,1),vicon_transformed(end,2),vicon_transformed(end,3),'or',LineWidth=3);
+xlabel('x'); ylabel('y'); zlabel('z');
 axis equal
-
+%%
 figure('Color','white'); 
 plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k')
 hold on
 plot3(vicon_transformed(base_points_idx(1),1),vicon_transformed(base_points_idx(1),2),vicon_transformed(base_points_idx(1),3),'ok',LineWidth=3);
 plot3(vicon_transformed(base_points_idx(end),1),vicon_transformed(base_points_idx(end),2),vicon_transformed(base_points_idx(end),3),'or',LineWidth=3);
+xlabel('x'); ylabel('y'); zlabel('z');
 axis equal
 
 %%
