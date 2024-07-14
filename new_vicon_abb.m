@@ -1,17 +1,61 @@
+%% Daten importieren
 clear
 % filename = 'squares_isodiagonalA&B_300Hz_v2500_1.csv';
 % filename = 'record_20240702_153511_squares_isodiagonalA&B_final.csv';
-filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv';
+% filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv';
+filename = 'record_20240711_144811_squares_isodiagonalA&B_15s_final.csv';
+
 data = importfile_vicon_abb_sync(filename);
+% Zeitstempel extrahieren
+date_time = data.timestamp(1);
+date_time = datetime(date_time,'ConvertFrom','epochtime','TicksPerSecond',1e9,'Format','dd-MMM-yyyy HH:mm:ss');
 
-% Wenn die Transformation anhand der Timestamps erfolgen soll (Sonst über Ereignisse und Stützpunkte)!
-sync_time = false;
+%% %%%%%%%%%%%%%%%%%%%%%% MANUELLE EINGABE %%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%
 
-% Plots an
-zeig_plots = false;
-
+% Interpolierte Sollbahn nutzen (sonst ABB Websocket) 
+generate_soll = true;
 % Anzahl der Punkte der Sollbahn (falls generiert werden soll)
 keypoints_faktor = 1;
+
+% Metriken die berechnet werden sollen
+euclidean = true;
+dtw = true;
+sidtw = true;
+frechet = true;
+lcss = true;
+
+%%%% Kommt noch später !!!!
+% do_segments = true; 
+
+% Gesamttrajectorie unterteilen (Sonst komplette Messung als eine Trajectory)
+split = true;
+
+% Plots an (Aus empfohlen sonst sehr viele Plots)
+pflag = false;
+
+% Koordinatentransformation anhand der Timestamps (Sonst über Ereignisse und Stützpunkte)!
+sync_time = false;
+
+% Upload in DATENBANK
+upload2mongo = true;
+
+%%%%%%%% Dateneingabe Header %%%%%%%%%%
+header_data = struct();
+header_data.data_id = [];                               % automatisch
+header_data.robot_model = "abb_irb4400";
+header_data.trajectory_type = "squares_iso_diagonal_A&B"; % "iso_path_A"
+header_data.path_solver = "interpolation"; % "abb_steuerung_websocket" "interpolation"
+header_data.recording_date = string(date_time); 
+header_data.real_robot = "true";
+header_data.number_of_points_ist = [];                  % automatisch
+header_data.number_of_points_soll = [];                 % automatisch
+header_data.sample_frequency_ist = [];                  % automatisch
+header_data.sample_frequency_soll = [];                 % automatisch
+header_data.source_data_ist = "vicon";
+header_data.source_data_soll = "interpolation"; % "abb_steuerung_websocket"
+header_data.evaluation_source = "matlab";
+
+%% Daten vorbereiten
 
 % Löschen nicht benötigten Timesstamps
 data.sec =[];
@@ -20,10 +64,13 @@ data.nanosec = [];
 % Double Array
 data_ = table2array(data);
 
+% Zeitstempel extrahieren
+date_time = data.timestamp(1);
+date_time = datetime(date_time,'ConvertFrom','epochtime','TicksPerSecond',1e9,'Format','dd-MMM-yyyy HH:mm:ss');
+
 % Timestamps in Sekunden
 data{:,1} = (data{:,1}- data{1,1})/1e9;
 data_timestamps = data{:,1};
-
 
 %%% VICON DATEN %%%
 
@@ -347,15 +394,282 @@ clear diffs_reference eucl_dists i
 
 %% Vicon Zerteilen und Sollbahngenerierung
 
-% Eventuell die Zerteilung schon vor der Koordinatentransformation
+% Generiere Sollbahn mit gemittelen Richtungsvektor der Vicon-Daten
+% generate_soll_vicon_v2(vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
 
-% GGF Funktion machen für Workspace clean...
+% Generiere Sollbahn mit den getriggerten Ereignissen aus der ABB-Steuerung
+generate_soll_vicon_v3_events(abb_reference,vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
 
-generate_soll_vicon(vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1);
 
-%%
-if zeig_plots
+%% ABB zerteilen (mit Spezialfällen)
 
+% Berechnung der Distanz vom Messstartpunkt bis zum ersten Ereignis mit 2% Toleranz
+% abb_first_distance = norm(abb_reference(1,:)-abb_reference(2,:));
+% abb_tolerance_first_distance = 0.02*abb_first_distance;
+% check_first_distance = find(abs(dist_segment_soll-abb_first_distance)<= abb_tolerance_first_distance);
+% abb_events_idx = find(abb_events(:,1) ~=0);
+
+% % Wenn das erte Ereinis nur weg soll, irgendwo random anfängt
+% if isempty(check_first_distance)
+%     abb_cleaned  = abb(abb_events_idx(2)-1:abb_events_idx(end),:);
+% else
+%     abb_cleaned  = abb(abb_events_idx(1)-1:abb_events_idx(end),:);
+% end
+
+%% ABB zerteilen (Bahn beginnt ab erstem Ereigniss
+
+% Kommt als nächstes!
+
+%% Bahnabschnitte zu Trajectorien zusammenfassen
+
+% Bestimmung der Homeposition und entsprechende Anzahl der Trajektorien 
+traj_home_vicon = vicon_reference_transformed(2,:);
+traj_search = abs(vicon_reference_transformed-traj_home_vicon);
+
+traj_search_norms = zeros(size(traj_search,1),1);
+for i = 1:size(traj_search,1)
+    traj_search_norms(i) = norm(traj_search(i,:));
+end
+traj_home_vicon_idx = find(traj_search_norms <= 1);
+trajectories_num = size(traj_home_vicon_idx,1)-1;
+
+% Einzelne Vicon und Soll Trajectorien anhand der Homepositionen zerlegen
+trajectories_ist = cell(1,trajectories_num);
+trajectories_soll = cell(1,trajectories_num);
+for i = 1:trajectories_num
+    start = traj_home_vicon_idx(i);
+    last = traj_home_vicon_idx(i+1)-1;
+    traj_ist = [];
+    traj_soll = [];
+    for j = start:1:last
+        traj_ist = [traj_ist; segments_ist{j}];
+        traj_soll = [traj_soll; segments_soll{j}];
+    end
+    trajectories_ist{i} = traj_ist;
+    trajectories_soll{i} = traj_soll;           
+end
+
+% Einzelne ABB Trajectorien anhand der Events und Homeposition zerlegen
+abb_events_idx = find(abb_events(:,1) ~=0);
+trajectories_abb = cell(1,trajectories_num);
+for i = 1:trajectories_num
+    start = traj_home_vicon_idx(i)-1;
+    last = traj_home_vicon_idx(i+1)-1;
+    start = abb_events_idx(start);
+    last = abb_events_idx(last)-1;
+    traj_abb = abb(start:last,:);
+    trajectories_abb{i} = traj_abb;
+end
+
+%%%%%%% SEGMENTE USW FEHLEN NOCH BEI ABBB--> Am besten ich schmeiss in die
+%%%%%%% Funktion von der Sollbahngenerierung dait auch alles vernünftig
+%%%%%%% ist. 
+
+%% Vorbereiten für Upload in Datenbank 
+
+% Einmal vorab die Base für die ID generieren
+trajectory_header_id_base = string(round(posixtime(datetime('now','TimeZone','UTC'))));
+trajectory_header_id_base_segments = trajectory_header_id_base + "_";
+
+% Leere Cell-Arrays für die Bewegungsdaten und Header
+struct_data = cell(1,trajectories_num);
+% struct_data_segments = cell(1,num_segments);
+struct_header = cell(1,trajectories_num);
+% struct_header_segments = cell(1,num_segments);
+
+% Datenbank Struktur für ganze Messfahrten
+for i = 1:1:trajectories_num 
+
+    % Geschwindigkeit (nur für generierte Sollbahn)
+    defined_velocity = max(trajectories_ist{i}(:,12));
+
+    % Funktionen zur Erzeugung der Datenstruktur für Soll und Istbahn
+    if generate_soll == true
+        datasoll_vicon(trajectories_soll{i}, defined_velocity, generate_soll);
+    else
+        datasoll_vicon(trajectories_abb{i}, defined_velocity, generate_soll);
+    end
+    dataist_vicon(trajectories_ist{i},trajectory_header_id_base,i)
+
+    % Istdaten in die Struktur schreiben
+    struct_data{i} = data_ist_part;
+
+    % Solldaten der Struktur hinzufügen
+    fields_soll = fieldnames(data_soll_part);
+    for j = 1:length(fields_soll)
+        struct_data{i}.(fields_soll{j}) = data_soll_part.(fields_soll{j});
+    end
+
+    % Struktur für Header erzeugen
+    if generate_soll == true
+        header2struct(trajectory_header_id, header_data, trajectories_ist{i}, trajectories_soll{i}, generate_soll);
+    else
+        header2struct(trajectory_header_id, header_data, trajectories_ist{i}, trajectories_abb{i}, generate_soll);
+    end
+    struct_header{i} = header_data;
+end
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%% Berechnung der Metriken %%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% - eucl   : Euklidischer Abstand
+% - dtw    : Dynamic Time Warping (Standard)
+% - sidtw  : Dynamic Time Warping mit selektiver Interpolation (Johnen)
+% - frechet: Frechet Abstand
+% - lcss   : Longest Common Subsequence
+
+struct_euclidean = cell(1,trajectories_num);
+struct_dtw = cell(1,trajectories_num);
+struct_sidtw = cell(1,trajectories_num);
+struct_frechet = cell(1,trajectories_num);
+
+for i = 1:1:trajectories_num
+    
+    trajectory_header_id = trajectory_header_id_base;
+    
+    % Aktuelle Ist-Bahn
+    trajectory_ist = trajectories_ist{i}(:, 2:4);
+
+    % Aktuelle Soll-Bahn
+    if generate_soll == false
+        trajectory_soll = trajectories_abb{i}(:,2:4);
+    else
+        trajectory_soll = trajectories_soll{i}(:,1:3);
+    end
+    
+    % Euklidsche Distanzen für die einzelnen Messfahrten
+    if euclidean == true
+        [eucl_interpolation,eucl_distances,~] = distance2curve(trajectory_ist,trajectory_soll,'linear');
+        metric2struct_eucl(trajectory_soll, eucl_interpolation, eucl_distances,trajectory_header_id,i);           
+        struct_euclidean{i} = metrics_euclidean;
+    else
+        clear struct_euclidean
+    end
+    % DTW für die einzelnen Messfahrten
+    if dtw == true
+        [dtw_distances, dtw_max, dtw_av, dtw_accdist, dtw_X, dtw_Y, dtw_path, ~, ~, ~] = ...
+        fkt_dtw3d(trajectory_soll, trajectory_ist, pflag);
+        metric2struct_dtw(trajectory_header_id, dtw_av, dtw_max, dtw_distances, dtw_accdist, dtw_path, dtw_X, dtw_Y,i);
+        struct_dtw{i} = metrics_dtw;
+    else
+        clear struct_dtw
+    end
+    % SIDTW für die einzelnen Messfahrten
+    if sidtw == true
+        [sidtw_distances, sidtw_max, sidtw_av,...
+            sidtw_accdist, sidtw_X, sidtw_Y, sidtw_path, ~, ~]...
+            = fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
+        metric2struct_sidtw(trajectory_header_id,sidtw_max, sidtw_av, ...
+            sidtw_distances,sidtw_X,sidtw_Y,sidtw_accdist,sidtw_path,i);
+        struct_sidtw{i} = metrics_johnen;
+    else
+        clear struct_sidtw
+    end
+    % Frechet-Distanz für die einzelnen Messfahrten
+    if frechet == true
+        fkt_discreteFrechet(trajectory_soll,trajectory_ist,pflag);
+        metric2struct_frechet(trajectory_header_id, frechet_av, frechet_dist, frechet_distances, frechet_matrix, frechet_path,i);
+        
+        struct_frechet{i} = metrics_frechet;
+    else
+        clear struct_frechet
+    end
+    % LCSS für die einzelnen Trajectorien
+    if lcss == true
+        [lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon] = fkt_lcss(trajectory_soll,trajectory_ist,pflag);
+        metric2struct_lcss(trajectory_header_id, lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon,i);
+
+        struct_lcss{i} = metrics_lcss;
+    end
+
+end
+
+%% Upload in Datenbank 
+
+if upload2mongo == true
+    
+    % Upload in Datenbank (nur wenn alle Metriken berechnet wurden)
+    if euclidean && dtw && sidtw && frechet && lcss
+    
+        % Verbindung mit MongoDB
+        connectionString = 'mongodb+srv://felixthomas:felixthomas@cluster0.su3gj7l.mongodb.net/';
+        connection = mongoc(connectionString, 'robotervermessung');
+        
+        % Überprüfe Verbindung
+        if isopen(connection)
+            disp('Verbindung erfolgreich hergestellt');
+        else
+            disp('Verbindung fehlgeschlagen');
+        end
+    else
+        error('Für den Upload in die Datenbank müssen alle Metriken berechnet werden!');
+    end
+
+    % Anzahl Trajektorien auf 1 setzen falls...
+    if split == false
+        trajectories_num = 1;
+
+        a = cell(1,1);
+
+        a{1} = struct_header;
+        struct_header = a;
+
+        a{1} = struct_data;
+        struct_data = a;
+
+        a{1} = struct_dtw;
+        struct_dtw = a;
+
+        a{1} = struct_sidtw;
+        struct_sidtw = a;
+
+        a{1} = struct_frechet;
+        struct_frechet = a;
+
+        a{1} = struct_euclidean;
+        struct_euclidean = a; 
+
+        a{1} = struct_lcss;
+        struct_lcss = a; 
+
+        clear a
+    end
+
+    for i = 1:1:trajectories_num
+    
+        % Löscht die Kostenmatrix falls Datenmenge zu groß für MongoDB
+        struct_dtw{i} = check_bytes(struct_dtw{i},'dtw');
+        struct_sidtw{i} = check_bytes(struct_sidtw{i},'sidtw');
+        struct_frechet{i} = check_bytes(struct_frechet{i},'frechet');
+        struct_lcss{i} = check_bytes(struct_lcss{i},'lcss');
+        
+        % Upload in Datenbank 
+        insert(connection, 'header', struct_header{i});
+        insert(connection, 'data', struct_data{i});     
+        insert(connection, 'metrics', struct_sidtw{i});
+        insert(connection, 'metrics', struct_euclidean{i});
+        insert(connection, 'metrics', struct_dtw{i});
+        insert(connection, 'metrics', struct_frechet{i});
+        insert(connection, 'metrics', struct_lcss{i});
+        if split == false
+            disp('Die Gesamttrajektorie wurde erfolgreich hochgeladen: '+ trajectory_header_id_base);
+        else
+            disp('Die Trajektorien wurden separiert hochgeladen: '+ trajectory_header_id_base+num2str(i));
+        end
+    end
+end
+%% PLOTS
+if pflag
+
+%% Plots zur Überprüfung in welcher Reihenfolge die Segmente kommen
+figure;
+for i  = 1:1:size(segments_ist,2)
+    plot3(segments_ist{i}(:,2),segments_ist{i}(:,3),segments_ist{i}(:,4))
+    hold on
+end
+plot3(segments_ist{1}(1,2),segments_ist{1}(1,3),segments_ist{1}(1,4),'ko',LineWidth=3);
+plot3(segments_ist{2}(1,2),segments_ist{2}(1,3),segments_ist{2}(1,4),'go',LineWidth=3);
 
 %% Plot zur Überprüfung der Korrektheit der berechneten Stützpunkte
 % points = base_points_vicon;
@@ -415,4 +729,14 @@ axis equal
 
 %%
 end
-%%
+%% Eine Trajectorie nach der anderen plotten!
+figure('Color','white');
+for i = 1:size(trajectories_soll,2) 
+% figure('Color','white');
+% plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k',LineWidth=3)
+hold on
+plot3(trajectories_ist{i}(:,2),trajectories_ist{i}(:,3),trajectories_ist{i}(:,4),'b')
+plot3(trajectories_soll{i}(:,1),trajectories_soll{i}(:,2),trajectories_soll{i}(:,3),'r')
+xlabel('x'); ylabel('y'); zlabel('z');
+axis equal
+end

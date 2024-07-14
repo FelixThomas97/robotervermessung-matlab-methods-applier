@@ -190,7 +190,7 @@ xlabel('X');
 ylabel('Y');
 zlabel('Z');
 legend({'s1 Points', 's2 Points', 'Matching Lines'}, 'Location', 'best');
-view(3);
+view(2);
 
 %% 
 figure;

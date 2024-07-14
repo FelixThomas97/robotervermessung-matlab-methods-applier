@@ -21,7 +21,7 @@ function dataist2struct(trajectory_ist,trajectory_header_id_base,i)
         trajectory_header_id = trajectory_header_id_base + num2str(i);
     end
 
-    %% Struktur für Datenbank erstellen
+    %% Struktur für Datenbank erstellen - Steuerung
     data_ist = struct();
     data_ist.trajectory_header_id = trajectory_header_id;
     data_ist.timestamp_ist = timestamp_ist;
@@ -36,7 +36,7 @@ function dataist2struct(trajectory_ist,trajectory_header_id_base,i)
     data_ist.q3_ist = q_ist(:, 3);
     data_ist.q4_ist = q_ist(:, 4);
     data_ist.joint_states_ist = joint_states_ist; 
-    data_ist.events_ist = events_ist; 
+    data_ist.events_ist = events_ist;
 
     %% Laden in Workspace
     assignin('base', 'trajectory_header_id', trajectory_header_id)

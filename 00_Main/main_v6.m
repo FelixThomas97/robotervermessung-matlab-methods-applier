@@ -2,10 +2,10 @@
 clear;
 % filename_excel_ist = 'iso_various_v2000_xx.xlsx';
 % filename_excel_soll = 'ist_testPTP_v1000.xlsx';
-%filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
-filename_excel_ist = 'squares500_isodiagonalB_cubes1to5_v1000_100hz_steuerung.xlsx';
-% filename_excel_soll = 'soll_iso_diagonal_l630_v2000_1x.xlsx';
-filename_excel_soll = [];
+filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
+% filename_excel_ist = 'squares500_isodiagonalB_cubes1to5_v1000_100hz_steuerung.xlsx';
+filename_excel_soll = 'soll_iso_diagonal_l630_v2000_1x.xlsx';
+% filename_excel_soll = [];
 % filename_excel_soll = 'soll_squares_l400_v1000_1x.xlsx'; %%%%% Keine Geschwindigkeit aufgezeichnet
 % filename_excel_soll = 'soll_squares_l400_v2000_1x.xlsx'; %%%% komisches Event drin spielt aber keine Rolle
 % filename_excel_ist = 'ist_squares_l400_v2000_4x.xlsx';
@@ -22,23 +22,25 @@ frechet = true;
 do_segments = true; 
 
 upload2mongo = false;
-upload2mongo_segments = true;
+upload2mongo_segments = false;
 
 %% Dateneingabe Header
 header_data = struct();
 header_data.data_id = [];                               % automatisch
-header_data.robot_name = "robot0";
+%header_data.robot_name = "robot0";
 header_data.robot_model = "abb_irb4400";
-header_data.trajectory_type = "iso_path_A"; % "iso_path_A"
-header_data.carthesian = "true";
+%header_data.trajectory_type = "iso_path_A"; % "iso_path_A"
+%header_data.carthesian = "true";
 header_data.path_solver = "abb_steuerung";
-header_data.recording_date = "2024-06-23T18:30:00.241866";
+header_data.recording_date = "2024-06-23T18:30:00.241866"; %automatisch - hier kommt der erste Zeitstempel der Bahn // von UNIX auf Zeit konvertieren
 header_data.real_robot = "true";
 header_data.number_of_points_ist = [];                  % automatisch
 header_data.number_of_points_soll = [];                 % automatisch
 header_data.sample_frequency_ist = [];                  % automatisch
 header_data.sample_frequency_soll = [];                 % automatisch
-header_data.source = "matlab";
+header_data.source_data_ist = "vicon";
+header_data.source_data_soll = "abb_steuerung";
+header_data.evaluation_source = "matlab";
 
 %%
 % Datenvorverarbeitung für durch ABB Robot Studio generierte Tabellen

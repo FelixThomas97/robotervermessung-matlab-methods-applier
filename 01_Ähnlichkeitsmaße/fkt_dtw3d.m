@@ -1,5 +1,12 @@
 function [distances, maxDistance, averageDistance, accdist, dtw_X, dtw_Y, path, ix, iy, localdist] = fkt_dtw3d(X,Y,pflag)
+%% Testen
+% pflag = 1;
+% 
+% load test_lcss
+% X = trajectories_soll{1};
+% Y = trajectories_ist{1}(:,2:4);
 
+%%
 if nargin < 3 
     pflag = false; 
 end
