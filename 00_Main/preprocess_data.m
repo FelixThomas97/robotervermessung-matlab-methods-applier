@@ -4,7 +4,7 @@ function preprocess_data(data, interpolate)
 % data = data_soll;
 % clear data_soll
 % 
-% %% 
+%% 
 % clear;
 % % filename_excel_ist = 'iso_various_v2000_xx.xlsx';
 % filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
@@ -111,7 +111,7 @@ matches = regexp(events, pattern, 'match');
 emptyCells = cellfun('isempty', matches);       % Findet leere Zellen
 matches(emptyCells) = {'0'};                    % Füllt leere Zellen mit Nullen
 events = cellfun(@str2double, matches);         % In double umwandeln
-
+%%
 % Indizes und Ereignisse kompakt
 events_index = find(events ~= 0);
 events_all = events(events_index);

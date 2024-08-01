@@ -15,6 +15,10 @@ if nargin < 3
     threshold = 0.1;
 end
 
+
+%%%%%%%
+% Nur für eine Aufnahme ... 
+
 % Punktweise Berechnung der Abstände
 M = size(positions, 1);
 position_distances = zeros(M-1, 1);

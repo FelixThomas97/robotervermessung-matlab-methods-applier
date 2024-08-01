@@ -56,7 +56,7 @@ for i = 1:length(X)
         end
     end
 end
-
+%%
 % Akkumulierte Kosten
 accdist=zeros(size(localdist));                 % bei Johnen so!
 % accdist(1,1)=localdist(1,1);                  % bei anderen Varianten so!

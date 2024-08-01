@@ -213,9 +213,23 @@ end
 % maximale und mittlere Distanz 
 maxDistance = max(distances);
 averageDistance = mean(distances);
-
 %% Visualiesierung
- if pflag
+
+if pflag
+
+% 
+% Farben Für Bahnvergleich
+blau = [0 0.4470 0.7410]; % Standard Blau
+rot = [0.78 0 0];
+
+% Für Plots Verfahren
+c1 = [0 0.4470 0.7410];
+c2 = [0.8500 0.3250 0.0980];
+c3 = [0.9290 0.6940 0.1250];
+c4 = [0.4940 0.1840 0.5560];
+c5 = [0.4660 0.6740 0.1880];
+c6 = [0.3010 0.7450 0.9330];
+c7 = [0.6350 0.0780 0.1840];
 
 % 2D Visualisierung der akkumulierten Kosten samt Mapping 
     figure('Name','SelectiveInterpolationDTW - Kostenkarte und optimaler Pfad','NumberTitle','off');
@@ -232,20 +246,26 @@ averageDistance = mean(distances);
     set(gca,'FontSize',10,'YDir', 'normal');
 
 % Plot der beiden Bahnen und Zuordnung
-    figure('Name','SelectiveInterpolationDTW - Zuordnung der Bahnpunkte','NumberTitle','off')
+% figure('Color','white');
+% hold on
+% plot3(ist(:,1),ist(:,2),ist(:,3),Color= c1,LineWidth=1.5,Marker = "o",MarkerFaceColor= c1)
+% plot3(soll(:,1),soll(:,2),soll(:,3),Color= rot,LineWidth=1.5,Marker = "square",MarkerFaceColor=rot)
+    figure('Color','white','Name','SelectiveInterpolationDTW - Zuordnung der Bahnpunkte','NumberTitle','off')
     hold on;
     grid on;
     box on;
-    plot3(dtw_X(:,1),dtw_X(:,2),dtw_X(:,3),'-ko', 'LineWidth', 2);
-    plot3(dtw_Y(:,1),dtw_Y(:,2),dtw_Y(:,3),'b','LineWidth', 2);
+    plot3(dtw_X(:,1),dtw_X(:,2),dtw_X(:,3),Color= rot,LineWidth=1.5,Marker = "square",MarkerFaceColor=rot,MarkerSize=4);
+    plot3(dtw_Y(:,1),dtw_Y(:,2),dtw_Y(:,3),Color= c1,LineWidth=1.5,Marker = "o",MarkerFaceColor= c1,MarkerSize=4);
     for i = 1:1:length(dtw_X)
-        line([dtw_Y(i,1),dtw_X(i,1)],[dtw_Y(i,2),dtw_X(i,2)],[dtw_Y(i,3),dtw_X(i,3)],'Color','red')
+        line([dtw_Y(i,1),dtw_X(i,1)],[dtw_Y(i,2),dtw_X(i,2)],[dtw_Y(i,3),dtw_X(i,3)],'Color','black')
     end
+    view(300, 40)
     legend({'Sollbahn','Istbahn','Abweichung'},'Location','northeast',"FontWeight", "bold")
     xlabel("x [mm]","FontWeight","bold")
     ylabel("y [mm]","FontWeight","bold")
     zlabel("z [mm]","FontWeight","bold")
     hold off
+    axis padded
  end
 
 end

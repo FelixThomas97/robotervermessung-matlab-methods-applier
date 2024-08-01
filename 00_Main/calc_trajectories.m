@@ -11,6 +11,17 @@ function calc_trajectories(data, events, zeros_index, interpolate)
 % 
 % interpolate = false;
 
+% %%
+% clear
+% filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
+% data_provision(filename_excel_ist);
+% data = table_ist;
+% interpolate = true;
+% preprocess_data(data)
+% 
+% events = events_ist; 
+% zeros_index = zeros_index_ist;
+
 %% Überprüfung ob Events mit Geschwindkeit = 0 in Zusammhang stehen
 % % % % To-Do: Das muss noch überarbeitet werden % % % %
 % z.B. muss überprüft werden ob überhaupt anhand der Nullen eine Aussage

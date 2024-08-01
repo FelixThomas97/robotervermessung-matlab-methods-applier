@@ -2,14 +2,19 @@
 clear;
 % filename_excel_ist = 'iso_various_v2000_xx.xlsx';
 % filename_excel_soll = 'ist_testPTP_v1000.xlsx';
-filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
+% filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
 % filename_excel_ist = 'squares500_isodiagonalB_cubes1to5_v1000_100hz_steuerung.xlsx';
-filename_excel_soll = 'soll_iso_diagonal_l630_v2000_1x.xlsx';
+% filename_excel_soll = 'soll_iso_diagonal_l630_v2000_1x.xlsx';
 % filename_excel_soll = [];
 % filename_excel_soll = 'soll_squares_l400_v1000_1x.xlsx'; %%%%% Keine Geschwindigkeit aufgezeichnet
 % filename_excel_soll = 'soll_squares_l400_v2000_1x.xlsx'; %%%% komisches Event drin spielt aber keine Rolle
 % filename_excel_ist = 'ist_squares_l400_v2000_4x.xlsx';
-% filename_excel_soll = [];
+filename_excel_soll = [];
+
+filename_excel_ist = 'iso_diagonal_v2000_15x.xlsx';
+% filename_excel_soll = 'iso_diagonal_v1000_15x.xlsx';
+
+% filename_excel_ist = "ist_squares_l400_v2000_4x.xlsx";
 
 pflag = false;
 
@@ -19,6 +24,8 @@ euclidean = true;
 dtw = true;
 sidtw = true;
 frechet = true;
+lcss = true;
+
 do_segments = true; 
 
 upload2mongo = false;
@@ -46,7 +53,7 @@ header_data.evaluation_source = "matlab";
 % Datenvorverarbeitung für durch ABB Robot Studio generierte Tabellen
 data_provision(filename_excel_ist);
 preprocess_data(table_ist);
-
+%%
 % Zerlegung der Bahnen in einzelne Segmente und vollständige Messdurchläufe
 calc_trajectories(data_ist,events_ist,zeros_index_ist);
 
@@ -258,6 +265,14 @@ if split == false
         struct_frechet = metrics_frechet;
     end
 
+    if lcss == true
+        [lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon] = fkt_lcss(trajectory_soll,trajectory_ist,pflag);
+        metric2struct_lcss(trajectory_header_id, lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon);
+
+        struct_frechet = metrics_frechet;
+
+    end
+
 % Berechnung der Metriken für die einzelnen Messfahrten
 else
 
@@ -265,6 +280,7 @@ else
     struct_dtw = cell(1,num_trajectories);
     struct_sidtw = cell(1,num_trajectories);
     struct_frechet = cell(1,num_trajectories);
+    struct_lcss = cell(1,num_trajectories);
     
     for i = 1:1:num_trajectories
         
@@ -317,6 +333,16 @@ else
         else
             clear struct_frechet
         end
+
+        % LCSS für die einzelnen Trajectorien
+        if lcss == true
+            [lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon] = fkt_lcss(trajectory_soll,trajectory_ist,pflag);
+            metric2struct_lcss(trajectory_header_id, lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon,i);
+    
+            struct_lcss{i} = metrics_lcss;
+        else
+            clear struct_lcss
+        end
     end
 end
 
@@ -327,6 +353,7 @@ if do_segments == true
     struct_dtw_segments = cell(1,num_segments);
     struct_sidtw_segments = cell(1,num_segments);
     struct_frechet_segments = cell(1,num_segments);
+    struct_lcss_segments = cell(1,num_segments);
 
     for i= 1:1:num_segments
         
@@ -383,6 +410,17 @@ if do_segments == true
         else
             clear struct_frechet_segments
         end
+
+        % LCSS für alle Bahnabschnitte
+        if lcss == true
+
+            [lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon] = fkt_lcss(segment_soll,segment_ist,pflag);
+            metric2struct_lcss(trajectory_header_id, lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon,i);
+
+            struct_lcss_segments{i} = metrics_lcss;
+        else
+            clear struct_lcss_segments
+        end
     end
 end
 
@@ -436,19 +474,19 @@ if upload2mongo == true
         a{1} = struct_euclidean;
         struct_euclidean = a; 
 
-        % a{1} = struct_lcss;
-        % struct_lcss = a; 
+        a{1} = struct_lcss;
+        struct_lcss = a; 
 
         clear a
     end
 
     for i = 1:1:num_trajectories
     
-        % Löscht die Kostenmatrix falls Datenmenge zu groß für MongoDB
+        % Löscht die Kostenmatrix falls Datenmenge zu groß für MongoDB ist
         struct_dtw{i} = check_bytes(struct_dtw{i},'dtw');
         struct_sidtw{i} = check_bytes(struct_sidtw{i},'sidtw');
         struct_frechet{i} = check_bytes(struct_frechet{i},'frechet');
-        % struct_lcss{i} = check_bytes(struct_lcss{i},'lcss');
+        struct_lcss{i} = check_bytes(struct_lcss{i},'lcss');
         
         % Upload in Datenbank 
         insert(connection, 'header', struct_header{i});
@@ -457,7 +495,7 @@ if upload2mongo == true
         insert(connection, 'metrics', struct_euclidean{i});
         insert(connection, 'metrics', struct_dtw{i});
         insert(connection, 'metrics', struct_frechet{i});
-        % insert(connection, 'metrics', struct_lcss{i});
+        insert(connection, 'metrics', struct_lcss{i});
         if split == false
             disp('Die Gesamttrajektorie wurde erfolgreich hochgeladen: '+ trajectory_header_id_base);
         else
@@ -473,7 +511,7 @@ if upload2mongo == true
             struct_dtw_segments{i} = check_bytes(struct_dtw_segments{i},'dtw');
             struct_sidtw_segments{i} = check_bytes(struct_sidtw_segments{i},'sidtw');
             struct_frechet_segments{i} = check_bytes(struct_frechet_segments{i},'frechet');
-            % struct_lcss_segments{i} = check_bytes(struct_lcss_segments{i},'lcss');
+            struct_lcss_segments{i} = check_bytes(struct_lcss_segments{i},'lcss');
             
             % Upload in Datenbank (nur wenn alle Metriken berechnet wurden)
             if euclidean && dtw && sidtw && frechet %&& lcss
@@ -483,7 +521,7 @@ if upload2mongo == true
                 insert(connection, 'metrics', struct_euclidean_segments{i});
                 insert(connection, 'metrics', struct_dtw_segments{i});
                 insert(connection, 'metrics', struct_frechet_segments{i});
-                % insert(connection, 'metrics', struct_lcss_segments{i});
+                insert(connection, 'metrics', struct_lcss_segments{i});
 
                 disp('Die einzelnen Bahnabschnitte wurden erfolgreich hochgeladen: ' +trajectory_header_id_base_segments+num2str(i));
             end
@@ -496,28 +534,29 @@ end
 % figure;
 % hold on
 % plot3(segments_soll{1}(:,1),segments_soll{1}(:,2),segments_soll{1}(:,3),'ko');
-% % plot3(segments_ist{1}(:,2),segments_ist{1}(:,3),segments_ist{1}(:,4),'-bo');
-% % plot3(segments_soll{2}(:,1),segments_soll{2}(:,2),segments_soll{2}(:,3),'ko');
-% % plot3(segments_soll{3}(:,1),segments_soll{3}(:,2),segments_soll{3}(:,3),'ko');
-% % plot3(segments_soll{4}(:,1),segments_soll{4}(:,2),segments_soll{4}(:,3),'ko');
-% % plot3(segments_soll{5}(:,1),segments_soll{5}(:,2),segments_soll{5}(:,3),'ko');
-% % view(3)
+% plot3(segments_ist{1}(:,2),segments_ist{1}(:,3),segments_ist{1}(:,4),'-bo');
+% plot3(segments_soll{2}(:,1),segments_soll{2}(:,2),segments_soll{2}(:,3),'ko');
+% plot3(segments_soll{3}(:,1),segments_soll{3}(:,2),segments_soll{3}(:,3),'ko');
+% plot3(segments_soll{4}(:,1),segments_soll{4}(:,2),segments_soll{4}(:,3),'ko');
+% plot3(segments_soll{5}(:,1),segments_soll{5}(:,2),segments_soll{5}(:,3),'ko');
+% view(3)
 % hold off
 
 %% Ganze Trajektorien plotten
 
-% % Eine bestimmte Trajektorie plotten
-% figure;
-% hold on
-% plot3(trajectories_soll{5}(:,2),trajectories_soll{5}(:,3),trajectories_soll{5}(:,4),'ko');
-% plot3(trajectories_ist{5}(:,2),trajectories_ist{5}(:,3),trajectories_ist{5}(:,4),'-bo');
-% hold off
+% Eine bestimmte Trajektorie plotten
+figure;
+hold on
+plot3(trajectories_soll{1}(:,2),trajectories_soll{1}(:,3),trajectories_soll{1}(:,4),'ko');
+plot3(trajectories_ist{1}(:,2),trajectories_ist{1}(:,3),trajectories_ist{1}(:,4),'-bo');
+hold off
 
-% Plotten aller Trajektorien
+%% Plotten aller Trajektorien
+% 
 pflag = true;
 if pflag 
     if interpolate == false
-    
+
         for i = 1:num_trajectories % letzte wird hier nicht geplottet, sonst +1
             figure;
             hold on
@@ -526,7 +565,7 @@ if pflag
             hold off
             view(3)
         end
-    
+
     else
         for i = 1:num_trajectories % letzte wird hier nicht geplottet, sonst +1
             figure;
@@ -536,8 +575,8 @@ if pflag
             hold off
             view(3)
         end
-    
     end
+        xlabel('x');ylabel('y');zlabel('z')
 end
 
 %% Aufräumen für Übersicht

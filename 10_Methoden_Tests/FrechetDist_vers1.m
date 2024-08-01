@@ -1,5 +1,5 @@
 %% FrechetDist_vers1 
-
+clear
 % load iso_path_C_1.mat
 load iso_path_B_real_1.mat
 
@@ -8,7 +8,7 @@ load iso_path_B_real_1.mat
 
 % Kreis
 % load trajectoryrobot117109292397507696.mat
-%%
+
 X = soll;
 Y = ist;
 % X = trajectory_soll;
@@ -60,6 +60,20 @@ pflag = 1;
 
 %% Berechnung Frechet-Distanz in 3D
 
+load iso_path_B_real_1.mat
+
+% Rechteck
+%load trajectoryrobot31710929195154314.mat
+
+% Kreis
+% load trajectoryrobot117109292397507696.mat
+
+X = soll;
+Y = ist;
+% Anzahl der Punkte und Dimension der Zeitreihen
+[M, dim_X] = size(X);
+[N, dim_Y] = size(Y);
+
 % Prüfen ob Vergleich der Zeitreihen möglich ist
 if dim_X ~= dim_Y
     error('Die Bahnen müssen die gleiche Dimension haben')
@@ -92,6 +106,8 @@ frechet_dist = frechet_matrix(end,end);
 
 % Finden der Zuordnungssequenz durch Backtracking 
 frechet_path = zeros(N + M + 1, 2);  
+frechet_path2 = [];
+frechet_path3 = [];
 frechet_matrix2 = [ones(1, N + 1) * inf; [ones(M, 1) * inf frechet_matrix]];  
 xi = M + 1;
 yj = N + 1;
@@ -101,17 +117,23 @@ while xi > 2 || yj > 2
     [~, index] = min([frechet_matrix2(xi - 1, yj) frechet_matrix2(xi - 1, yj - 1) frechet_matrix2(xi, yj - 1)]);
     if index == 1
         frechet_path(count, :) = [xi - 1 yj];
+        frechet_path2 = [frechet_path2; [xi - 1 yj] ]; % Zum Testen. Ist das gleiche
+        frechet_path3 = [[xi - 1 yj]; frechet_path3 ];
         xi = xi - 1;
     elseif index == 2
         frechet_path(count, :) = [xi - 1 yj - 1];
+        frechet_path2 = [frechet_path2; [xi - 1 yj - 1] ];
+        frechet_path3 = [[xi - 1 yj - 1]; frechet_path3 ];
         xi = xi - 1; yj = yj - 1;
     elseif index == 3
         frechet_path(count, :) = [xi yj - 1];
+        frechet_path2 = [frechet_path2; [xi yj - 1] ];
+        frechet_path3 = [[xi yj - 1]; frechet_path3 ];
         yj = yj - 1;
     end
     count = count + 1;
 end
-
+%%
 frechet_path = flip(frechet_path);                          % Umdrehen 
 lastZero = find(frechet_path(:, 1) == 0, 1, 'last');        % Index der letzten Nullzeile
 frechet_path = frechet_path(lastZero+1:end, :);             % Nullzeilen löschen
@@ -120,6 +142,15 @@ frechet_path = [frechet_path; M N];                         % Füge das letzte W
 
 % Euklidische Distanz zwischen allen Punktpaaren der Zuordnungssequenz
 frechet_distances = sqrt(sum((X(frechet_path(:,1),:) - Y(frechet_path(:,2),:)).^2,2));
+
+%% Zum Testen. Ist das Gleiche!
+frechet_path2 = flip(frechet_path2);
+frechet_path2 = frechet_path2-1;
+frechet_path2 = [frechet_path2; M N]; 
+
+% frechet_path3 = frechet_path3-1;
+frechet_path3 = [frechet_path3-1; M N]; 
+
 
 % frechet_distances1 = zeros(length(frechet_path),1);
 % for i = 1:1:length(frechet_path)

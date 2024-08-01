@@ -1,14 +1,18 @@
 %% FrechetDist_vers1 
 
+clear
 % load iso_path_C_1.mat
 
 % % Rechteck
-load trajectoryrobot31710929195154314.mat
+% load trajectoryrobot31710929195154314.mat
 
 % Kreis
 % load trajectoryrobot117109292397507696.mat
 
-data = table2array(trajectoryrobot31710929195154314);
+% Iso Diaglonal
+load trajectoryrobot017139657492242258.mat
+
+data = table2array(trajectoryrobot017139657492242258);
 
 % Extrahieren Ist- und Sollbahnen mit Zeitstempeln und kartesischen Koordinaten
 x_ist = data(:,2);

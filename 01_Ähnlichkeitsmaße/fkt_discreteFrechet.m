@@ -71,26 +71,49 @@ end
     %% Plot
     
     if pflag 
-    figure('Name','Discrete Frechet Distance')
+
+     
+    % Farben Für Bahnvergleich
+    blau = [0 0.4470 0.7410]; % Standard Blau
+    rot = [0.78 0 0];
+    
+    % Für Plots Verfahren
+    c1 = [0 0.4470 0.7410];
+    c2 = [0.8500 0.3250 0.0980];
+    c3 = [0.9290 0.6940 0.1250];
+    c4 = [0.4940 0.1840 0.5560];
+    c5 = [0.4660 0.6740 0.1880];
+    c6 = [0.3010 0.7450 0.9330];
+    c7 = [0.6350 0.0780 0.1840];
+    
+    figure('Color','white','Name','Discrete Frechet Distance')
     hold on
-    plot3(X(:,1),X(:,2),X(:,3),'o-b','linewidth',2,'markerfacecolor','b')
-    plot3(Y(:,1),Y(:,2),Y(:,3),'o-r','linewidth',2,'markerfacecolor','r')
+    plot3(X(:,1),X(:,2),X(:,3),Color= c1,LineWidth=1.5,Marker = "o",MarkerFaceColor= c1,MarkerSize=4);
+    plot3(Y(:,1),Y(:,2),Y(:,3),Color= rot,LineWidth=1.5,Marker = "square",MarkerFaceColor=rot,MarkerSize=4);
     for j=1:length(frechet_path)
       line([X(frechet_path(j,1),1) Y(frechet_path(j,2),1)],...
            [X(frechet_path(j,1),2) Y(frechet_path(j,2),2)],...
            [X(frechet_path(j,1),3) Y(frechet_path(j,2),3)],...
            'color','black');
     end
-    [~,j] = max(frechet_distances);
-    line([X(frechet_path(j,1),1) Y(frechet_path(j,2),1)],...
-           [X(frechet_path(j,1),2) Y(frechet_path(j,2),2)],...
-           [X(frechet_path(j,1),3) Y(frechet_path(j,2),3)],...
-           'color','black','linewidth',3);
-    j = length(frechet_path);
-    line([X(frechet_path(j,1),1) Y(frechet_path(j,2),1)],...
-           [X(frechet_path(j,1),2) Y(frechet_path(j,2),2)],...
-           [X(frechet_path(j,1),3) Y(frechet_path(j,2),3)],...
-           'color',[0 0.8 0.5],'linewidth',3);
+    view(220, 30)
+    legend({'Istbahn','Sollbahn','Abweichung'},'Location','northeast',"FontWeight", "bold")
+    xlabel("x","FontWeight","bold")
+    ylabel("y","FontWeight","bold")
+    zlabel("z","FontWeight","bold")
+    grid on
+    hold off
+
+    % [~,j] = max(frechet_distances);
+    % line([X(frechet_path(j,1),1) Y(frechet_path(j,2),1)],...
+    %        [X(frechet_path(j,1),2) Y(frechet_path(j,2),2)],...
+    %        [X(frechet_path(j,1),3) Y(frechet_path(j,2),3)],...
+    %        'color','black','linewidth',3);
+    % j = length(frechet_path);
+    % line([X(frechet_path(j,1),1) Y(frechet_path(j,2),1)],...
+    %        [X(frechet_path(j,1),2) Y(frechet_path(j,2),2)],...
+    %        [X(frechet_path(j,1),3) Y(frechet_path(j,2),3)],...
+    %        'color',[0 0.8 0.5],'linewidth',3);
     % j = length(frechet_path)-1;
     % line([X(frechet_path(j,1),1) Y(frechet_path(j,2),1)],...
     %        [X(frechet_path(j,1),2) Y(frechet_path(j,2),2)],...

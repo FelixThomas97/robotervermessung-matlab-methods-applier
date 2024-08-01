@@ -70,7 +70,7 @@ for i = 1:length(indices_threshold)
         last_saved_index = idx;
     end
 end
-
+%%
 % Berechnung der Abstände zwischen den Punkten
 dist_points_all = zeros(length(points_all),1);
 for i = 1:length(points_all)-1
@@ -98,7 +98,7 @@ clear dist_points_all diffs M
 %% Ist-Bahn vorbereiten: Erkennen welcher Abschnitt des Iso-Cubes
 % Annahme, dass Bahnlängen eine maximale Abweichung von ... mm haben
 binWidth = 2;
-% histogram(dist_points, 'BinWidth', binWidth);
+histogram(dist_points, 'BinWidth', binWidth);
 % Ermitteln der häufigsten Bahnlängen: Annahme diese ist die Kantenlänge des Iso-Würfels
 [counts, edges] = histcounts(dist_points, 'BinWidth', binWidth);
 [~, max_idx] = max(counts);
@@ -360,55 +360,67 @@ end
 
 %% Plots der Segmente (mit Splines!)
 
+
+a = [0 0.4470 0.7410]; % Standard Blau
+b = [0.78 0 0];
 figure;
 hold on
-axis equal
-plot3(segments_ist{1}(:,1),segments_ist{1}(:,2),segments_ist{1}(:,3),'r')% spline
-plot3(segments_ist{2}(:,1),segments_ist{2}(:,2),segments_ist{2}(:,3),'b')
-plot3(segments_ist{3}(:,1),segments_ist{3}(:,2),segments_ist{3}(:,3),'b')
-plot3(segments_ist{4}(:,1),segments_ist{4}(:,2),segments_ist{4}(:,3),'b')
-plot3(segments_ist{5}(:,1),segments_ist{5}(:,2),segments_ist{5}(:,3),'b')
-plot3(segments_ist{6}(:,1),segments_ist{6}(:,2),segments_ist{6}(:,3),'b')
-plot3(segments_ist{7}(:,1),segments_ist{7}(:,2),segments_ist{7}(:,3),'b')
-plot3(segments_ist{8}(:,1),segments_ist{8}(:,2),segments_ist{8}(:,3),'b')
-plot3(segments_ist{9}(:,1),segments_ist{9}(:,2),segments_ist{9}(:,3),'b')
-plot3(segments_ist{10}(:,1),segments_ist{10}(:,2),segments_ist{10}(:,3),'r')% spline
-plot3(segments_ist{11}(:,1),segments_ist{11}(:,2),segments_ist{11}(:,3),'b')
-plot3(segments_ist{12}(:,1),segments_ist{12}(:,2),segments_ist{12}(:,3),'b')
-plot3(segments_ist{13}(:,1),segments_ist{13}(:,2),segments_ist{13}(:,3),'b')
-plot3(segments_ist{14}(:,1),segments_ist{14}(:,2),segments_ist{14}(:,3),'b')
-plot3(segments_ist{15}(:,1),segments_ist{15}(:,2),segments_ist{15}(:,3),'b')
-plot3(segments_ist{16}(:,1),segments_ist{16}(:,2),segments_ist{16}(:,3),'r')% spline
-plot3(segments_ist{17}(:,1),segments_ist{17}(:,2),segments_ist{17}(:,3),'r')% spline
-plot3(segments_ist{18}(:,1),segments_ist{18}(:,2),segments_ist{18}(:,3),'b')
-plot3(segments_ist{19}(:,1),segments_ist{19}(:,2),segments_ist{19}(:,3),'r')% spline
-plot3(segments_ist{20}(:,1),segments_ist{20}(:,2),segments_ist{20}(:,3),'r')% spline
-plot3(segments_ist{21}(:,1),segments_ist{21}(:,2),segments_ist{21}(:,3),'b')
-plot3(segments_ist{22}(:,1),segments_ist{22}(:,2),segments_ist{22}(:,3),'b')
-plot3(segments_ist{23}(:,1),segments_ist{23}(:,2),segments_ist{23}(:,3),'b')
-plot3(segments_ist{24}(:,1),segments_ist{24}(:,2),segments_ist{24}(:,3),'b')
-plot3(segments_ist{25}(:,1),segments_ist{25}(:,2),segments_ist{25}(:,3),'b')
-plot3(segments_ist{26}(:,1),segments_ist{26}(:,2),segments_ist{26}(:,3),'b')
-plot3(segments_ist{27}(:,1),segments_ist{27}(:,2),segments_ist{27}(:,3),'b')
-plot3(segments_ist{28}(:,1),segments_ist{28}(:,2),segments_ist{28}(:,3),'r')% spline
-plot3(segments_ist{29}(:,1),segments_ist{29}(:,2),segments_ist{29}(:,3),'b')
-plot3(segments_ist{30}(:,1),segments_ist{30}(:,2),segments_ist{30}(:,3),'b')
-plot3(segments_ist{31}(:,1),segments_ist{31}(:,2),segments_ist{31}(:,3),'b')
-plot3(segments_ist{32}(:,1),segments_ist{32}(:,2),segments_ist{32}(:,3),'b')
-plot3(segments_ist{33}(:,1),segments_ist{33}(:,2),segments_ist{33}(:,3),'b')
-plot3(segments_ist{34}(:,1),segments_ist{34}(:,2),segments_ist{34}(:,3),'b')
-plot3(segments_ist{35}(:,1),segments_ist{35}(:,2),segments_ist{35}(:,3),'b')
-plot3(segments_ist{36}(:,1),segments_ist{36}(:,2),segments_ist{36}(:,3),'b')
-plot3(segments_ist{37}(:,1),segments_ist{37}(:,2),segments_ist{37}(:,3),'r')% spline
-plot3(segments_ist{38}(:,1),segments_ist{38}(:,2),segments_ist{38}(:,3),'b')
-plot3(segments_ist{39}(:,1),segments_ist{39}(:,2),segments_ist{39}(:,3),'b')
-plot3(segments_ist{40}(:,1),segments_ist{40}(:,2),segments_ist{40}(:,3),'b')
-plot3(segments_ist{41}(:,1),segments_ist{41}(:,2),segments_ist{41}(:,3),'b')
-plot3(segments_ist{42}(:,1),segments_ist{42}(:,2),segments_ist{42}(:,3),'b')
-plot3(segments_ist{43}(:,1),segments_ist{43}(:,2),segments_ist{43}(:,3),'b')
-plot3(segments_ist{44}(:,1),segments_ist{44}(:,2),segments_ist{44}(:,3),'b')
-plot3(segments_ist{45}(:,1),segments_ist{45}(:,2),segments_ist{45}(:,3),'b')
+plot3(segments_ist{1}(:,1),segments_ist{1}(:,2),segments_ist{1}(:,3),'Color', b)% spline
+plot3(segments_ist{2}(:,1),segments_ist{2}(:,2),segments_ist{2}(:,3),'Color', a)
+plot3(segments_ist{3}(:,1),segments_ist{3}(:,2),segments_ist{3}(:,3),'Color', a)
+plot3(segments_ist{4}(:,1),segments_ist{4}(:,2),segments_ist{4}(:,3),'Color', a)
+plot3(segments_ist{5}(:,1),segments_ist{5}(:,2),segments_ist{5}(:,3),'Color', a)
+plot3(segments_ist{6}(:,1),segments_ist{6}(:,2),segments_ist{6}(:,3),'Color', a)
+plot3(segments_ist{7}(:,1),segments_ist{7}(:,2),segments_ist{7}(:,3),'Color', a)
+plot3(segments_ist{8}(:,1),segments_ist{8}(:,2),segments_ist{8}(:,3),'Color', a)
+plot3(segments_ist{9}(:,1),segments_ist{9}(:,2),segments_ist{9}(:,3),'Color', a)
+plot3(segments_ist{10}(:,1),segments_ist{10}(:,2),segments_ist{10}(:,3),'Color', b)% spline
+plot3(segments_ist{11}(:,1),segments_ist{11}(:,2),segments_ist{11}(:,3),'Color', a)
+plot3(segments_ist{12}(:,1),segments_ist{12}(:,2),segments_ist{12}(:,3),'Color', a)
+plot3(segments_ist{13}(:,1),segments_ist{13}(:,2),segments_ist{13}(:,3),'Color', a)
+plot3(segments_ist{14}(:,1),segments_ist{14}(:,2),segments_ist{14}(:,3),'Color', a)
+plot3(segments_ist{15}(:,1),segments_ist{15}(:,2),segments_ist{15}(:,3),'Color', a)
+plot3(segments_ist{16}(:,1),segments_ist{16}(:,2),segments_ist{16}(:,3),'Color', b)% spline
+plot3(segments_ist{17}(:,1),segments_ist{17}(:,2),segments_ist{17}(:,3),'Color', b)% spline
+plot3(segments_ist{18}(:,1),segments_ist{18}(:,2),segments_ist{18}(:,3),'Color', a)
+plot3(segments_ist{19}(:,1),segments_ist{19}(:,2),segments_ist{19}(:,3),'Color', b)% spline
+plot3(segments_ist{20}(:,1),segments_ist{20}(:,2),segments_ist{20}(:,3),'Color', b)% spline
+plot3(segments_ist{21}(:,1),segments_ist{21}(:,2),segments_ist{21}(:,3),'Color', a)
+plot3(segments_ist{22}(:,1),segments_ist{22}(:,2),segments_ist{22}(:,3),'Color', a)
+plot3(segments_ist{23}(:,1),segments_ist{23}(:,2),segments_ist{23}(:,3),'Color', a)
+plot3(segments_ist{24}(:,1),segments_ist{24}(:,2),segments_ist{24}(:,3),'Color', a)
+plot3(segments_ist{25}(:,1),segments_ist{25}(:,2),segments_ist{25}(:,3),'Color', a)
+plot3(segments_ist{26}(:,1),segments_ist{26}(:,2),segments_ist{26}(:,3),'Color', a)
+plot3(segments_ist{27}(:,1),segments_ist{27}(:,2),segments_ist{27}(:,3),'Color', a)
+plot3(segments_ist{28}(:,1),segments_ist{28}(:,2),segments_ist{28}(:,3),'Color', b)% spline
+plot3(segments_ist{29}(:,1),segments_ist{29}(:,2),segments_ist{29}(:,3),'Color', a)
+plot3(segments_ist{30}(:,1),segments_ist{30}(:,2),segments_ist{30}(:,3),'Color', a)
+plot3(segments_ist{31}(:,1),segments_ist{31}(:,2),segments_ist{31}(:,3),'Color', a)
+plot3(segments_ist{32}(:,1),segments_ist{32}(:,2),segments_ist{32}(:,3),'Color', a)
+plot3(segments_ist{33}(:,1),segments_ist{33}(:,2),segments_ist{33}(:,3),'Color', a)
+plot3(segments_ist{34}(:,1),segments_ist{34}(:,2),segments_ist{34}(:,3),'Color', a)
+plot3(segments_ist{35}(:,1),segments_ist{35}(:,2),segments_ist{35}(:,3),'Color', a)
+plot3(segments_ist{36}(:,1),segments_ist{36}(:,2),segments_ist{36}(:,3),'Color', a)
+plot3(segments_ist{37}(:,1),segments_ist{37}(:,2),segments_ist{37}(:,3),'Color', b)% spline
+plot3(segments_ist{38}(:,1),segments_ist{38}(:,2),segments_ist{38}(:,3),'Color', a)
+plot3(segments_ist{39}(:,1),segments_ist{39}(:,2),segments_ist{39}(:,3),'Color', a)
+plot3(segments_ist{40}(:,1),segments_ist{40}(:,2),segments_ist{40}(:,3),'Color', a)
+plot3(segments_ist{41}(:,1),segments_ist{41}(:,2),segments_ist{41}(:,3),'Color', a)
+plot3(segments_ist{42}(:,1),segments_ist{42}(:,2),segments_ist{42}(:,3),'Color', a)
+plot3(segments_ist{43}(:,1),segments_ist{43}(:,2),segments_ist{43}(:,3),'Color', a)
+plot3(segments_ist{44}(:,1),segments_ist{44}(:,2),segments_ist{44}(:,3),'Color', a)
+plot3(segments_ist{45}(:,1),segments_ist{45}(:,2),segments_ist{45}(:,3),'Color', a)
 
+
+legend('Zeitreihe $X$', 'Zeitreihe $Y$','Zuordnung')
+% Grid funktioniert nicht!
+ax.GridColor = "black";
+ax.GridLineWidth = 1.0;
+set(gca,'FontSize',10,'YDir', 'normal');
+
+view(3);
+axis tight
+grid on
 
 %%
 figure;

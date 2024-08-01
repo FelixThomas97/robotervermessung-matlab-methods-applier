@@ -27,8 +27,8 @@ if info_bytes > max_bytes
         input_struct = rmfield(input_struct, 'dtw_accdist');
     elseif strcmp(argname, 'frechet')
         input_struct = rmfield(input_struct, 'frechet_matrix');
-    % elseif strcmp(argname, 'lcss')
-    %     input_struct = rmfield(input_struct, 'lcss_matrix');
+    elseif strcmp(argname, 'lcss')
+        input_struct = rmfield(input_struct, 'lcss_matrix');
     else
         error('Übergebenes Argument entspricht keiner Metrik!');
     end

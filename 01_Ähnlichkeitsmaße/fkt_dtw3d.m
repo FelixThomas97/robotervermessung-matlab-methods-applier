@@ -101,6 +101,20 @@ averageDistance = mean(distances);
 
 if pflag
 
+% 
+% Farben Für Bahnvergleich
+blau = [0 0.4470 0.7410]; % Standard Blau
+rot = [0.78 0 0];
+
+% Für Plots Verfahren
+c1 = [0 0.4470 0.7410];
+c2 = [0.8500 0.3250 0.0980];
+c3 = [0.9290 0.6940 0.1250];
+c4 = [0.4940 0.1840 0.5560];
+c5 = [0.4660 0.6740 0.1880];
+c6 = [0.3010 0.7450 0.9330];
+c7 = [0.6350 0.0780 0.1840];
+
 %% 3D - Oberfläche der Kostenmatrix
     % figure('Name','DTW - Akkumulierte Distanz','NumberTitle','off');
     % surf(accdist)

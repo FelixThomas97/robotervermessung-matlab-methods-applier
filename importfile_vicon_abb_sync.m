@@ -14,7 +14,9 @@ function data = importfile_vicon_abb_sync(filename, dataLines)
     numCols = numel(strsplit(firstLine, ','));
 
     %% Set up the Import Options and import the data
+        
 
+        %%%%%% Ohne Ereignisse
     if numCols == 40
         opts = delimitedTextImportOptions("NumVariables", 40);
         
@@ -33,6 +35,8 @@ function data = importfile_vicon_abb_sync(filename, dataLines)
         events = false;
         assignin('base',"events",events);
 
+
+        %%%%%% Mit Ereignissen bei Positionsänderung
    elseif numCols == 43
         opts = delimitedTextImportOptions("NumVariables", 43);
         
@@ -50,7 +54,9 @@ function data = importfile_vicon_abb_sync(filename, dataLines)
 
         events = true;
         assignin('base',"events",events);
-        
+
+        %%%%% Mit Ereignissen bei Orientierungsänderung und
+        %%%%% Positionosänderung
     elseif numCols == 47
         opts = delimitedTextImportOptions("NumVariables", 47);
         
