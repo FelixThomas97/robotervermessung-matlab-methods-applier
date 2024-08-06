@@ -15,6 +15,7 @@ c7 = [0.6350 0.0780 0.1840];
 
 load square1
 
+% Umbenennen der Variablen
 X = pathX'*1000;
 Y = pathY'*1000;
 
@@ -46,6 +47,8 @@ figure('Color','white','Name','DTW - Zuordnung der Bahnpunkte','NumberTitle','of
     hold off
 
 %% DFD
+
+% Plot ist in der Funktion umgesetzt
 fkt_discreteFrechet(X,Y,pflag);
 
 

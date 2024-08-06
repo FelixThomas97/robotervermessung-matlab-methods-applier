@@ -1,13 +1,18 @@
-function generate_soll_vicon(data,position,points,points_dist,points_idx,keypoints_faktor,threshold)
+function generate_soll_vicon_events(abb_reference,data,position,points,points_dist,points_idx,keypoints_faktor,threshold)
 %% Zum Testen
 % clear;
-% load base_points_test1.mat
+% % load base_points_test2.mat
+% % load base_tesssst.mat % Ereignisse laden
+% load test_record_20240711_144811.mat
+% 
 % points_dist = base_points_dist;
 % points = base_points_vicon;
 % points_idx = base_points_idx;
 % 
 % data = vicon; 
 % position = vicon_transformed;
+% % Ursprüngliche Vicon Daten mit transformierten Vicon Daten überschreiben
+% data(:,2:4) = position;
 % 
 % % 3% von der Länge der programmierten Bahn
 % p = 0.03;
@@ -17,6 +22,8 @@ function generate_soll_vicon(data,position,points,points_dist,points_idx,keypoin
 % % So für 250Hz gut
 % threshold = 0.1*4;
 %%
+% Ursprüngliche Vicon Daten mit transformierten Vicon Daten überschreiben
+data(:,2:4) = position;
 
 % 3% von der Länge der programmierten Bahn (erstmal fix angenommen)
 p = 0.03;
@@ -101,7 +108,7 @@ for i = 1:1:size(segments_ist,2)
     else
         idx2 = index_ist(i+1);
     end
-    segments_ist{i} = trajectory_ist(idx1:idx2,:);
+    segments_ist{i} = data_ist(idx1:idx2,:);
 
     % Punktweise Berechnung der Abstände des Bahnabschnitts
     dists = zeros(size(segments_ist{i},1)-1,1);
@@ -141,112 +148,28 @@ segments_soll = cell(1,length(points_dist));
 num_seg = size(segments_soll,2);
 dist_segment_soll = zeros(size(segments_soll,2),1);
 
+% Mit den Websocket-Ereignissen als Eckpunkte
 for i = 1:1:num_seg
-    
-    % Indizes der Anfangs und Endpunkte der Istbahnabschnitte
-    idx1 = index_ist(i);
-    if i < num_seg
-        idx2 = index_ist(i+1)-1;
-    else
-        idx2 = index_ist(i+1);
-    end
 
-    % % Ermittlung einer Auswahl an Punkte am Ende eines Abschnitts
-    % if i < num_seg
-    %     selection = trajectory_ist(idx2-5:idx2+5,:);
-    %     % selection = trajectory_ist(idx2:idx2,:);
-    % else
-    %     selection = trajectory_ist(idx2-10:idx2,:);
-    % end
-    % <--- so war vorher...
+    first_point = abb_reference(i,:);
+    last_point = abb_reference(i+1,:);
 
-    % Ermittlung einer Auswahl an Punkte am Ende eines Abschnitts
-    idxend = idx2;
-    while idxend < size(trajectory_ist,1) && norm(trajectory_ist(idxend+1, :) - trajectory_ist(idxend, :)) < threshold
-        idxend = idxend +1;
-    end
-    selection = trajectory_ist(idx2:idxend,:);
-    
-    % Nur zur überprüfung wie oft nur ein Wert in der selection gefunden wird
-    if size(selection,1) == 1
-        check_dim = check_dim +1;
-    end
-
-    % Ermittlung der normierten Richtungsvektoren für die Auswahl an Punkten
-    selection_mean = mean(selection,1);
-    selection_direction = selection_mean - trajectory_ist(idx1,:);
-    selection_direction = selection_direction/norm(selection_direction);
-    
-    % Anzeigen der Distanzen der Auswahl zum Mittelwert der Auswahl
-    mean_distance = mean(vecnorm(selection - selection_mean));
-
-    % Ermittlung der normierten Richtungsvektoren für die Auswahl an Punkten
-    % selection_direction = zeros(length(selection),3);
-    % selection_norm_direction = zeros(length(selection),3);
-    % for j = 1:size(selection,1)
-    %     selection_direction(j,:) = selection(j,:) - trajectory_ist(idx1,:);
-    %     norm_ = norm(selection_direction(j,:));
-    %     if norm_ ~= 0
-    %         selection_norm_direction(j,:) = selection_direction(j,:)/norm_;
-    %     end
-    % end
-    % 
-    % % Gemitteleter und normierter Richtungsvektor 
-    % selection_direction = mean(selection_direction,1);
-    % selection_direction = selection_direction/norm(selection_direction);
-    %<--- so war vorher
-
-    % Anzahl Punkte
     num_soll = abs(round(length(segments_ist{i})*keypoints_faktor)); % aufrunden und immer positiv
-        
-    % Falls erste Distanz keine erlaubte Kante im ISO-Würfel ist, müssen
-    % die Indizes der Distanzen um 1 reduziert werden, sonst verschiebt
-    % sich der Würfel. 
-    if i == 1 && ~ismember(1,index_edges) && ~ismember(1,index_root2) && ~ismember(1,index_root3)
-        first_point = trajectory_ist(idx1,:);
-        index_edges = index_edges -1;
-        index_root2 = index_root2 -1;
-        index_root3 = index_root3 -1;
-    elseif i == 1
-        first_point = trajectory_ist(idx1,:);
-    end
     
-    if ismember(i,index_edges)
-        % last_point = selection_mean;
-        last_point = first_point + selection_direction*length_edge;
-        % Lineare Interpolation zwischen Anfangs- und Endpunkt des Segments mit gleichbleibenden Abständen
-        segment_soll = interp1([0 1], [first_point; last_point], linspace(0, 1, num_soll)); 
-    elseif ismember(i,index_root2)
-        % last_point = selection_mean;
-        last_point = first_point + selection_direction*length_root2;
-        % Lineare Interpolation zwischen Anfangs- und Endpunkt des Segments mit gleichbleibenden Abständen
-        segment_soll = interp1([0 1], [first_point; last_point], linspace(0, 1, num_soll)); 
-    elseif ismember(i,index_root3)
-        % last_point = selection_mean;
-        last_point = first_point + selection_direction*length_root3;
-        % Lineare Interpolation zwischen Anfangs- und Endpunkt des Segments mit gleichbleibenden Abständen
-        segment_soll = interp1([0 1], [first_point; last_point], linspace(0, 1, num_soll)); 
-    else
-        % last_point = trajectory_ist(idx2,:);
-        last_point = first_point + selection_direction*length_edge;
-        % Lineare Interpolation zwischen Anfangs- und Endpunkt des Segments mit gleichbleibenden Abständen
-        segment_soll = interp1([0 1], [first_point; last_point], linspace(0, 1, num_soll)); 
-    end
-    
+    segment_soll = interp1([0 1], [first_point; last_point], linspace(0, 1, num_soll));
+
     % Eintragen in Cell-Array
     segments_soll{i} = segment_soll;
     
     % Distanzen der Bahnabschnitte
     dist_segment_soll(i) = vecnorm(first_point-last_point);
-    
-    % letzen Punkt als neuen ersten Punkt setzen
-    first_point = last_point;
+
 end
 
 % Berechnung der Abstände in den Ecken
 dist_segment_corner = zeros(size(segments_soll,2),1);
 for i = 1:size(segments_soll,2)
-    dist_segment_corner(i) = norm(segments_soll{i}(1,:)-segments_ist{i}(1,:));
+    dist_segment_corner(i) = norm(segments_soll{i}(1,:)-segments_ist{i}(1,2:4));
 end
 
 clear selection_direction first_point last_point i j %selection
@@ -279,7 +202,7 @@ assignin("base","dist_segment_corner",dist_segment_corner);
 %     plot3(segments_ist{i}(:,1),segments_ist{i}(:,2),segments_ist{i}(:,3),'r')
 % end
 % 
-%% Plot der beiden Trajektorien
+% % Plot der beiden Trajektorien
 % figure('Color','white'); 
 % % plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k',LineWidth=3)
 % hold on

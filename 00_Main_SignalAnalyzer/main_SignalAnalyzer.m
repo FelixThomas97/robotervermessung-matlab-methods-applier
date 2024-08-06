@@ -4,12 +4,12 @@ clear;
 % filename_excel_soll = 'ist_testPTP_v1000.xlsx';
 % filename_excel_ist = 'ist_iso_diagonal_l630_v2000_4x.xlsx';
 % filename_excel_ist = 'squares500_isodiagonalB_cubes1to5_v1000_100hz_steuerung.xlsx';
-% filename_excel_soll = 'soll_iso_diagonal_l630_v2000_1x.xlsx';
+filename_excel_soll = 'soll_iso_diagonal_l630_v2000_1x.xlsx';
 % filename_excel_soll = [];
 % filename_excel_soll = 'soll_squares_l400_v1000_1x.xlsx'; %%%%% Keine Geschwindigkeit aufgezeichnet
 % filename_excel_soll = 'soll_squares_l400_v2000_1x.xlsx'; %%%% komisches Event drin spielt aber keine Rolle
 % filename_excel_ist = 'ist_squares_l400_v2000_4x.xlsx';
-filename_excel_soll = [];
+% filename_excel_soll = [];
 
 filename_excel_ist = 'iso_diagonal_v2000_15x.xlsx';
 % filename_excel_soll = 'iso_diagonal_v1000_15x.xlsx';
@@ -549,6 +549,9 @@ figure;
 hold on
 plot3(trajectories_soll{1}(:,2),trajectories_soll{1}(:,3),trajectories_soll{1}(:,4),'ko');
 plot3(trajectories_ist{1}(:,2),trajectories_ist{1}(:,3),trajectories_ist{1}(:,4),'-bo');
+xlabel('x');ylabel('y');zlabel('z')
+grid on 
+view(3)
 hold off
 
 %% Plotten aller Trajektorien

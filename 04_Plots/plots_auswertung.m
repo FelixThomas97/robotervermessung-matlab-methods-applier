@@ -6,7 +6,7 @@
 
 % Für Bahnvergleich
 blau = [0 0.4470 0.7410]; % Standard Blau
-rot = [0.78 0 0];
+rot = [0.78 0 0]; % gewählter Rotton in Masterarbeit
 
 % Für Plots Verfahren
 c1 = [0 0.4470 0.7410];
@@ -30,7 +30,7 @@ plotabweichungen = 0;
 
 for i = 1:size(trajectories_ist,2) % size(segments_ist,2)
 
-    %%%%%%%%%%%TRAJEKTORIEN
+    %%%%%%%%%%% TRAJEKTORIEN
     xt_dists_av_dtw(i) = struct_dtw{i}.dtw_average_distance*1000;
     xt_dists_av_frechet(i) = struct_frechet{i}.frechet_average_distance *1000;
     xt_dists_av_lcss(i) = struct_lcss{i}.lcss_average_distance*1000;
@@ -45,7 +45,7 @@ for i = 1:size(trajectories_ist,2) % size(segments_ist,2)
 end
 
 for i = 1:size(segments_ist,2) 
-    %%%%%%%%%%SEGMETE
+    %%%%%%%%%% SEGMETE
     xs_dists_av_dtw(i) = struct_dtw_segments{i}.dtw_average_distance*1000;
     xs_dists_av_frechet(i) = struct_frechet_segments{i}.frechet_average_distance *1000;
     xs_dists_av_lcss(i) = struct_lcss_segments{i}.lcss_average_distance*1000;

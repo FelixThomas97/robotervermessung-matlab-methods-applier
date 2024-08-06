@@ -42,7 +42,6 @@ spp = find(conn, collections{4}, 'Query', query);
 close(conn);
 end
 
-
 %% Export eine Datei
 
 trajectory_header_id = "robot0171629638116";
@@ -115,7 +114,8 @@ else
 
 end
 
-%% Etwas löschen 
+%% Etwas löschen
+
     searchID = 'robot0171629638116';
     n = remove(conn,"header",['{"data_id": "', searchID, '"}'])
     n = remove(conn,"data",['{"trajectory_header_id": "', searchID, '"}'])

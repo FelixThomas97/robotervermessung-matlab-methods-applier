@@ -8,9 +8,7 @@ clear
 filename = 'record_20240711_144811_squares_isodiagonalA&B_15s_final.csv'; % 100Hz
 % filename = 'record_20240711_164202_squares_isodiagonalA&B_final (1).csv'; % 300Hz
 
-
-
-%%% Bester Mann
+% % % % 
 % filename = 'record_20240711_144811_squares_isodiagonalA&B_15s_final.csv';
 
 data = importfile_vicon_abb_sync(filename);
@@ -403,10 +401,10 @@ clear diffs_reference eucl_dists i
 %% Vicon Zerteilen und Sollbahngenerierung
 
 % Generiere Sollbahn mit gemittelen Richtungsvektor der Vicon-Daten
-% generate_soll_vicon_v2(vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
+% generate_soll_vicon_no_events(vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
 
 % Generiere Sollbahn mit den getriggerten Ereignissen aus der ABB-Steuerung
-generate_soll_vicon_v3_events(abb_reference,vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
+generate_soll_vicon_events(abb_reference,vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
 
 
 %% ABB zerteilen (mit Spezialfällen)
