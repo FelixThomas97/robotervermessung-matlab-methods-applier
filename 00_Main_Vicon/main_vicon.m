@@ -1,25 +1,33 @@
 %% Daten importieren
 clear
+
 % filename = 'squares_isodiagonalA&B_300Hz_v2500_1.csv';
 % filename = 'record_20240702_153511_squares_isodiagonalA&B_final.csv'; % 700Hz
 % filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv'; % 250 Hz
 
 
-filename = 'record_20240711_144811_squares_isodiagonalA&B_15s_final.csv'; % 100Hz
+
+
+% filename = 'record_20240711_144811_squares_isodiagonalA&B_15s_final.csv'; % 100Hz
 % filename = 'record_20240711_164202_squares_isodiagonalA&B_final (1).csv'; % 300Hz
 
-% % % % 
-% filename = 'record_20240711_144811_squares_isodiagonalA&B_15s_final.csv';
+% filename = 'record_20240711_170652_squares_isodiagonalA&B_final (1).csv'; % 350Hz funzt nicht.
+% filename = 'record_20240711_143408_squares_isodiagonalA&B_final.csv'; % Vicon Daten nicht aufgezeichnet. 
+
+% filename = 'record_20240711_172935_all_final.csv';
+filename = 'record_20240715_143311_calibration_run_final.csv';
 
 data = importfile_vicon_abb_sync(filename);
 % Zeitstempel extrahieren
 date_time = data.timestamp(1);
 date_time = datetime(date_time,'ConvertFrom','epochtime','TicksPerSecond',1e9,'Format','dd-MMM-yyyy HH:mm:ss');
 
+
 %% %%%%%%%%%%%%%%%%%%%%%% MANUELLE EINGABE %%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%
 
 % Interpolierte Sollbahn nutzen (sonst ABB Websocket) 
 generate_soll = true;
+
 % Anzahl der Punkte der Sollbahn (falls generiert werden soll)
 keypoints_faktor = 1;
 
@@ -28,7 +36,7 @@ euclidean = true;
 dtw = true;
 sidtw = true;
 frechet = true;
-lcss = true;
+lcss = false;
 
 %%%% Kommt noch später !!!!
 % do_segments = true; 
@@ -121,11 +129,22 @@ if length(vicon_velocity) > length(vicon_positions)
     vicon_velocity = vicon_velocity(1:length(vicon_positions),:);
 end
 
+% Größe der Datenpakete anpassen
+size_timestamp = length(vicon_timestamps);
+size_pose = length(vicon_pose);
+size_velocity = length(vicon_velocity);
+size_accel = length(vicon_accel);
+size_min = min([size_timestamp, size_pose, size_velocity, size_accel]);
+
+vicon_accel = vicon_accel(1:size_min,:);
+vicon_velocity = vicon_velocity(1:size_min,:);
+vicon_pose = vicon_pose(1:size_min,:);
+vicon_timestamps = vicon_timestamps(1:size_min,:);
+
 % Array mit allen Vicon Daten
 vicon = [vicon_timestamps vicon_pose vicon_velocity vicon_accel];
 
 clear clean_NaN filename vicon_pose
-
 
 %%% ABB Daten %%%%
 
@@ -287,12 +306,14 @@ velocity_max_abb = max(abb_velocity);
 
 % Schrittweite der Indizes für die nach gleichen Punkten gesucht wird
 min_index_distance = round(freq_vicon/2);
+
 % Herrausfinden der Stützpunkte und deren Indizes sowie den Abständen
 vicon_get_basepoints(vicon_positions, min_index_distance);
 
 % Ersten Punkt mitteln und Standabweichung 
 p1 = vicon_positions(1:base_points_idx(1),:);
 stdev_p1 = std(p1);
+% stdev_p1 = 0.1;
 stdevnorm_p1 = norm(stdev_p1)*10;
 p1 = mean(p1);
 
@@ -306,6 +327,7 @@ vicon_get_basepoints(vicon_positions, min_index_distance,stdevnorm_p1);
 %% Berechnung der Referenzdaten für die Koordinatenstransformation
 
 % Wenn die Transformation anhand (fast) synchroner Teilstamps erfolgen soll
+% --> schlechte Ergebnisse! 
 if sync_time == true 
     % Ermittlung von Referenzpunkten für die Koordinatentransformation
     % --> hier anhand von Punkten deren Timestamps sehr nahe beieinander liegen
@@ -422,7 +444,7 @@ generate_soll_vicon_events(abb_reference,vicon,vicon_transformed,base_points_vic
 %     abb_cleaned  = abb(abb_events_idx(1)-1:abb_events_idx(end),:);
 % end
 
-%% ABB zerteilen (Bahn beginnt ab erstem Ereigniss
+%% ABB zerteilen (Bahn beginnt ab erstem Ereigniss)
 
 abb_events_idx = find(abb_events(:,1) ~=0);
 segments_abb = cell(1,size(segments_ist,2));
@@ -434,12 +456,13 @@ for i = 1:1:size(segments_ist,2)
         segments_abb{i} = abb(abb_events_idx(i-1):abb_events_idx(i),:);
     end
 end
+
 %% Bahnabschnitte zu Trajectorien zusammenfassen
-%%%%%%%%%% Angepasster Code vor Abgage%%%%%%%%%%
+%%%%%%%%%% Angepasster Code vor Abgage %%%%%%%%%%
 
 % Die erste Position interssiert jetzt nichtmehr!
-%abb_reference = abb_reference(2:end,:);
-%vicon_reference_transformed = vicon_reference_transformed(2:end,:);
+% abb_reference = abb_reference(2:end,:);
+% vicon_reference_transformed = vicon_reference_transformed(2:end,:);
 
 % Am häufigsten vorkommende Position aus ABB-Daten filtern
 [C, ~, ic] = unique(abb_reference, 'rows');
@@ -841,7 +864,7 @@ plot3(abb_positions(1,1),abb_positions(1,2),abb_positions(1,3),'og',LineWidth=3)
 plot3(events_positions(1,1),events_positions(1,2),events_positions(1,3),'ok',LineWidth=3);
 plot3(events_positions(end,1),events_positions(end,2),events_positions(end,3),'or',LineWidth=3);
 xlabel('x'); ylabel('y'); zlabel('z');
-axis equal
+axis padded
 %%
 figure('Color','white'); 
 plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k')
@@ -869,6 +892,7 @@ for i = 1:size(trajectories_soll,2)
     hold on
     plot3(trajectories_ist{i}(:,2),trajectories_ist{i}(:,3),trajectories_ist{i}(:,4),'b')
     plot3(trajectories_soll{i}(:,1),trajectories_soll{i}(:,2),trajectories_soll{i}(:,3),'r')
+    legend('ist','soll')
     xlabel('x'); ylabel('y'); zlabel('z');
 % axis equal
 end
