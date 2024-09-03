@@ -43,7 +43,7 @@ for i = 1:size(trajectories_ist,2) % size(segments_ist,2)
     xt_dists_max_sidtw(i) = struct_sidtw{i}.dtw_max_distance*1000;
     xt_dists_max_eucl(i) = struct_euclidean{i}.euclidean_max_distance*1000;
 end
-
+%%
 for i = 1:size(segments_ist,2) 
     %%%%%%%%%% SEGMETE
     xs_dists_av_dtw(i) = struct_dtw_segments{i}.dtw_average_distance*1000;
@@ -79,7 +79,7 @@ yy_max_eucl = mean(xt_dists_max_eucl);
 %% 
 figure('Color','white');
 hold on
-ylim([0 max(xt_dists_av_frechet)]);
+% ylim([0 max(xt_dists_av_frechet)]);
 % Segmente
 plot(xs_dists_av_dtw,LineWidth=1)
 plot(xs_dists_av_frechet,LineWidth=1)
@@ -87,15 +87,15 @@ plot(xs_dists_av_lcss,LineWidth=1)
 plot(xs_dists_av_sidtw,LineWidth=1)
 plot(xs_dists_av_eucl,LineWidth=1)
 % Trajektorien
-plot(xt_dists_av_dtw,LineWidth=2.5,Color=c1)
-plot(xt_dists_av_frechet,LineWidth=2.5,Color=c2)
-plot(xt_dists_av_lcss,LineWidth=2.5,Color=c3)
-plot(xt_dists_av_sidtw,LineWidth=2.5,Color=c4)
-plot(xt_dists_av_eucl,LineWidth=2.5,Color=c5)
-% Linie die Trajektorien von Segmenten trennt
+% plot(xt_dists_av_dtw,LineWidth=2.5,Color=c1)
+% plot(xt_dists_av_frechet,LineWidth=2.5,Color=c2)
+% plot(xt_dists_av_lcss,LineWidth=2.5,Color=c3)
+% plot(xt_dists_av_sidtw,LineWidth=2.5,Color=c4)
+% plot(xt_dists_av_eucl,LineWidth=2.5,Color=c5)
+% % Linie die Trajektorien von Segmenten trennt
 
 xlabel('Bahnsegmente (Trajektorien)');
-ylabel('Abweichung in $mm$');
+ylabel('Abweichung in mm');
 % legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
 xline(size(trajectories_ist,2))
 % axis equal

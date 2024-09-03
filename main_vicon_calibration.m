@@ -28,7 +28,7 @@ calibration_run(filename_calibration,events)
 %% %%%%%%%%%%%%%%%%%%%%%% MANUELLE EINGABE %%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%
 
 % Interpolierte Sollbahn nutzen (sonst ABB Websocket) 
-generate_soll = true;
+generate_soll = false;
 
 % Anzahl der Punkte der Sollbahn (falls generiert werden soll)
 keypoints_faktor = 1;
@@ -38,7 +38,7 @@ euclidean = true;
 dtw = true;
 sidtw = true;
 frechet = true;
-lcss = false;
+lcss = true;
 
 %%%% Kommt noch später !!!!
 % do_segments = true; 
@@ -308,7 +308,7 @@ velocity_max_abb = max(abb_velocity);
 %% Berechnung der Stützpunkte im Vicon-System
 
 % Schrittweite der Indizes für die nach gleichen Punkten gesucht wird
-min_index_distance = round(freq_vicon/2);
+min_index_distance = round(freq_vicon/3);
 
 % Herrausfinden der Stützpunkte und deren Indizes sowie den Abständen
 vicon_get_basepoints(vicon_positions, min_index_distance);
@@ -399,6 +399,7 @@ T = abb_mean - vicon_mean * R;
 % Koordinatentransformation Referenz- und Gesamtbahn
 vicon_reference_transformed = vicon_reference*R + T; 
 vicon_transformed = vicon_positions*R + T;
+base_points_vicon_transformed = base_points_vicon*R + T; 
 
 clear U V T R H 
 
@@ -427,6 +428,14 @@ clear diffs_reference eucl_dists i
 
 % Generiere Sollbahn mit gemittelen Richtungsvektor der Vicon-Daten
 % generate_soll_vicon_no_events(vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
+
+% Ermittlung des Startpunkts im ABB Koordinatensystem über Mittelwert
+diffs = diff(abb_positions);
+dists = sqrt(sum(diffs.^2, 2));
+% Erste Index der Distanz der größer ist
+first_idx = find(dists > 0.05,1);
+p1_abb = mean(abb_positions(1:first_idx-1,:));
+abb_reference = [p1_abb; events_positions];
 
 % Generiere Sollbahn mit den getriggerten Ereignissen aus der ABB-Steuerung
 generate_soll_vicon_events(abb_reference,vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
@@ -588,74 +597,74 @@ end
 % - frechet: Frechet Abstand
 % - lcss   : Longest Common Subsequence
 
-struct_euclidean = cell(1,trajectories_num);
-struct_dtw = cell(1,trajectories_num);
-struct_sidtw = cell(1,trajectories_num);
-struct_frechet = cell(1,trajectories_num);
-struct_lcss = cell(1,trajectories_num);
-
-for i = 1:1:trajectories_num
-
-    trajectory_header_id = trajectory_header_id_base;
-
-    % Aktuelle Ist-Bahn
-    trajectory_ist = trajectories_ist{i}(:, 2:4);
-
-    % Aktuelle Soll-Bahn
-    if generate_soll == false
-        trajectory_soll = trajectories_abb{i}(:,2:4);
-    else
-        trajectory_soll = trajectories_soll{i}(:,1:3);
-    end
-
-    % Euklidsche Distanzen für die einzelnen Messfahrten
-    if euclidean == true
-        [eucl_interpolation,eucl_distances,~] = distance2curve(trajectory_ist,trajectory_soll,'linear');
-        metric2struct_eucl(trajectory_soll, eucl_interpolation, eucl_distances,trajectory_header_id,i);           
-        struct_euclidean{i} = metrics_euclidean;
-    else
-        clear struct_euclidean
-    end
-    % DTW für die einzelnen Messfahrten
-    if dtw == true
-        [dtw_distances, dtw_max, dtw_av, dtw_accdist, dtw_X, dtw_Y, dtw_path, ~, ~, ~] = ...
-        fkt_dtw3d(trajectory_soll, trajectory_ist, pflag);
-        metric2struct_dtw(trajectory_header_id, dtw_av, dtw_max, dtw_distances, dtw_accdist, dtw_path, dtw_X, dtw_Y,i);
-        struct_dtw{i} = metrics_dtw;
-    else
-        clear struct_dtw
-    end
-    % SIDTW für die einzelnen Messfahrten
-    if sidtw == true
-        [sidtw_distances, sidtw_max, sidtw_av,...
-            sidtw_accdist, sidtw_X, sidtw_Y, sidtw_path, ~, ~]...
-            = fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
-        metric2struct_sidtw(trajectory_header_id,sidtw_max, sidtw_av, ...
-            sidtw_distances,sidtw_X,sidtw_Y,sidtw_accdist,sidtw_path,i);
-        struct_sidtw{i} = metrics_johnen;
-    else
-        clear struct_sidtw
-    end
-    % Frechet-Distanz für die einzelnen Messfahrten
-    if frechet == true
-        fkt_discreteFrechet(trajectory_soll,trajectory_ist,pflag);
-        metric2struct_frechet(trajectory_header_id, frechet_av, frechet_dist, frechet_distances, frechet_matrix, frechet_path,i);
-
-        struct_frechet{i} = metrics_frechet;
-    else
-        clear struct_frechet
-    end
-    % LCSS für die einzelnen Trajectorien
-    if lcss == true
-        [lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon] = fkt_lcss(trajectory_soll,trajectory_ist,pflag);
-        metric2struct_lcss(trajectory_header_id, lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon,i);
-
-        struct_lcss{i} = metrics_lcss;
-    else
-        clear struct_lcss
-    end
-
-end
+% struct_euclidean = cell(1,trajectories_num);
+% struct_dtw = cell(1,trajectories_num);
+% struct_sidtw = cell(1,trajectories_num);
+% struct_frechet = cell(1,trajectories_num);
+% struct_lcss = cell(1,trajectories_num);
+% 
+% for i = 1:1:trajectories_num
+% 
+%     trajectory_header_id = trajectory_header_id_base;
+% 
+%     % Aktuelle Ist-Bahn
+%     trajectory_ist = trajectories_ist{i}(:, 2:4);
+% 
+%     % Aktuelle Soll-Bahn
+%     if generate_soll == false
+%         trajectory_soll = trajectories_abb{i}(:,2:4);
+%     else
+%         trajectory_soll = trajectories_soll{i}(:,1:3);
+%     end
+% 
+%     % Euklidsche Distanzen für die einzelnen Messfahrten
+%     if euclidean == true
+%         [eucl_interpolation,eucl_distances,~] = distance2curve(trajectory_ist,trajectory_soll,'linear');
+%         metric2struct_eucl(trajectory_soll, eucl_interpolation, eucl_distances,trajectory_header_id,i);           
+%         struct_euclidean{i} = metrics_euclidean;
+%     else
+%         clear struct_euclidean
+%     end
+%     % DTW für die einzelnen Messfahrten
+%     if dtw == true
+%         [dtw_distances, dtw_max, dtw_av, dtw_accdist, dtw_X, dtw_Y, dtw_path, ~, ~, ~] = ...
+%         fkt_dtw3d(trajectory_soll, trajectory_ist, pflag);
+%         metric2struct_dtw(trajectory_header_id, dtw_av, dtw_max, dtw_distances, dtw_accdist, dtw_path, dtw_X, dtw_Y,i);
+%         struct_dtw{i} = metrics_dtw;
+%     else
+%         clear struct_dtw
+%     end
+%     % SIDTW für die einzelnen Messfahrten
+%     if sidtw == true
+%         [sidtw_distances, sidtw_max, sidtw_av,...
+%             sidtw_accdist, sidtw_X, sidtw_Y, sidtw_path, ~, ~]...
+%             = fkt_selintdtw3d(trajectory_soll,trajectory_ist,pflag);
+%         metric2struct_sidtw(trajectory_header_id,sidtw_max, sidtw_av, ...
+%             sidtw_distances,sidtw_X,sidtw_Y,sidtw_accdist,sidtw_path,i);
+%         struct_sidtw{i} = metrics_johnen;
+%     else
+%         clear struct_sidtw
+%     end
+%     % Frechet-Distanz für die einzelnen Messfahrten
+%     if frechet == true
+%         fkt_discreteFrechet(trajectory_soll,trajectory_ist,pflag);
+%         metric2struct_frechet(trajectory_header_id, frechet_av, frechet_dist, frechet_distances, frechet_matrix, frechet_path,i);
+% 
+%         struct_frechet{i} = metrics_frechet;
+%     else
+%         clear struct_frechet
+%     end
+%     % LCSS für die einzelnen Trajectorien
+%     if lcss == true
+%         [lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon] = fkt_lcss(trajectory_soll,trajectory_ist,pflag);
+%         metric2struct_lcss(trajectory_header_id, lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon,i);
+% 
+%         struct_lcss{i} = metrics_lcss;
+%     else
+%         clear struct_lcss
+%     end
+% 
+% end
 
 %%
 do_segments = true;
@@ -900,6 +909,34 @@ for i = 1:size(trajectories_soll,2)
 % axis equal
 end
 hold off
+
+
+%%
+% Alle Segmente nach der anderen plotten!
+figure('Color','white');
+for i = 1:size(segments_soll,2) 
+    % figure('Color','white');
+    % plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k',LineWidth=3)
+    hold on
+    plot3(segments_ist{i}(:,2),segments_ist{i}(:,3),segments_ist{i}(:,4),'b')
+    plot3(segments_soll{i}(:,1),segments_soll{i}(:,2),segments_soll{i}(:,3),'r')
+    legend('ist','soll')
+    xlabel('x'); ylabel('y'); zlabel('z');
+% axis equal
+end
+hold off
+%%
+figure('Color','white');
+% plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k',LineWidth=3)
+hold on
+plot3(segments_ist{1}(:,2),segments_ist{1}(:,3),segments_ist{1}(:,4),'b')
+plot3(segments_abb{1}(:,2),segments_abb{1}(:,3),segments_abb{1}(:,4),'r')
+plot3(segments_ist{82}(:,2),segments_ist{82}(:,3),segments_ist{82}(:,4),'b')
+plot3(segments_soll{82}(:,1),segments_soll{82}(:,2),segments_soll{82}(:,3),'r')
+plot3(segments_ist{83}(:,2),segments_ist{83}(:,3),segments_ist{83}(:,4),'b')
+plot3(segments_soll{83}(:,1),segments_soll{83}(:,2),segments_soll{83}(:,3),'r')
+legend('ist','soll')
+xlabel('x'); ylabel('y'); zlabel('z');
 %% PLOT DER KOORDNIATENTRANSFORMATION
 
 % blau = [0 0.4470 0.7410]; % Standard Blau
@@ -917,3 +954,7 @@ hold off
 % axis equal
 % axis padded
 % grid on
+
+%% Plot der maximalen und mittleren Abweichungen
+
+plot_errors(segments_ist,struct_dtw_segments,struct_frechet_segments,struct_lcss_segments,struct_sidtw_segments,struct_euclidean_segments);
