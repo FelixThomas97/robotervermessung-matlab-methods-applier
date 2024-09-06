@@ -1,4 +1,4 @@
-function metric2struct_lcss(trajectory_header_id, lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon,i)
+function metric2struct_lcss(trajectory_header_id, lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lcss_Y,lcss_score,lcss_epsilon,segment_id)
 
     lcss_path = lcss_path';
 
@@ -8,8 +8,10 @@ function metric2struct_lcss(trajectory_header_id, lcss_av, lcss_max, lcss_distan
     % Wenn kein i eingeht dann nur die Base-ID
     if nargin < 11
         metrics_lcss.trajectory_header_id = trajectory_header_id;
+        metrics_lcss.segment_id = trajectory_header_id;
     else
-        metrics_lcss.trajectory_header_id = trajectory_header_id+string(i);
+        metrics_lcss.trajectory_header_id = trajectory_header_id;
+        metrics_lcss.segment_id = segment_id;
     end
     % LCSS
     metrics_lcss.lcss_max_distance = lcss_max/1000;

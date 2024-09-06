@@ -1,4 +1,4 @@
-function metric2struct_dtw(trajectory_header_id, dtw_av, dtw_max, dtw_distances, dtw_accdist, dtw_path, dtw_X, dtw_Y,i)
+function metric2struct_dtw(trajectory_header_id, dtw_av, dtw_max, dtw_distances, dtw_accdist, dtw_path, dtw_X, dtw_Y,segment_id)
 
     dtw_path = dtw_path';
 
@@ -8,8 +8,10 @@ function metric2struct_dtw(trajectory_header_id, dtw_av, dtw_max, dtw_distances,
     % Wenn kein i eingeht dann nur die Base-ID
     if nargin < 9
         metrics_dtw.trajectory_header_id = trajectory_header_id;
+        metrics_dtw.segment_id = trajectory_header_id;
     else
-        metrics_dtw.trajectory_header_id = trajectory_header_id+string(i);
+        metrics_dtw.trajectory_header_id = trajectory_header_id;
+        metrics_dtw.segment_id = segment_id;
     end
     % DTW Johnen
     metrics_dtw.dtw_max_distance = dtw_max/1000;

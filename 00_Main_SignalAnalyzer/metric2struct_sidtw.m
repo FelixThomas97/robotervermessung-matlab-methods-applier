@@ -1,5 +1,5 @@
 function metric2struct_sidtw(trajectory_header_id,maxDistance_selintdtw, avDistance_selintdtw, ...
-    distances_selintdtw,X_selintdtw,Y_selintdtw,accdist_selintdtw,path_selintdtw,i)
+    distances_selintdtw,X_selintdtw,Y_selintdtw,accdist_selintdtw,path_selintdtw,segment_id)
     
     path_selintdtw = path_selintdtw';
 
@@ -8,8 +8,10 @@ function metric2struct_sidtw(trajectory_header_id,maxDistance_selintdtw, avDista
     % Wenn kein i eingeht dann nur die Base-ID
     if nargin < 9
         metrics_johnen.trajectory_header_id = trajectory_header_id;
+        metrics_johnen.segment_id = trajectory_header_id;
     else
-        metrics_johnen.trajectory_header_id = trajectory_header_id+string(i);
+        metrics_johnen.trajectory_header_id = trajectory_header_id;
+        metrics_johnen.segment_id = segment_id; 
     end
     % DTW Johnen
     metrics_johnen.dtw_max_distance = maxDistance_selintdtw/1000;

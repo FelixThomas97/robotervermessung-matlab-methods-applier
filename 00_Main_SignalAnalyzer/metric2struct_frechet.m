@@ -1,4 +1,4 @@
-function metric2struct_frechet(trajectory_header_id, frechet_av, frechet_dist, frechet_distances, frechet_matrix, frechet_path,i)
+function metric2struct_frechet(trajectory_header_id, frechet_av, frechet_dist, frechet_distances, frechet_matrix, frechet_path,segment_id)
 
 frechet_path = frechet_path';
 
@@ -7,8 +7,10 @@ frechet_path = frechet_path';
     % Wenn kein i eingeht dann nur die Base-ID
     if nargin < 7
          metrics_frechet.trajectory_header_id = trajectory_header_id;
+         metrics_frechet.segment_id = trajectory_header_id;
     else
-         metrics_frechet.trajectory_header_id = trajectory_header_id+string(i);
+         metrics_frechet.trajectory_header_id = trajectory_header_id;
+         metrics_frechet.segment_id = segment_id; 
     end
     % 
     metrics_frechet.frechet_max_distance = frechet_dist/1000;

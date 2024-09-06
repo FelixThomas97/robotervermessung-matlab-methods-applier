@@ -1,4 +1,4 @@
-function metric2struct_eucl(trajectory_soll, eucl_intepolation,eucl_distances,trajectory_header_id,i)
+function metric2struct_eucl(trajectory_soll, eucl_intepolation,eucl_distances,trajectory_header_id,segment_id)
 
 
     % Mittleren Abstand usw. 
@@ -29,8 +29,10 @@ function metric2struct_eucl(trajectory_soll, eucl_intepolation,eucl_distances,tr
     % Wenn kein i eingeht dann nur die Base-ID
     if nargin < 5
         metrics_euclidean.trajectory_header_id = trajectory_header_id;
+        metrics_euclidean.segment_id = trajectory_header_id;
     else
-        metrics_euclidean.trajectory_header_id = trajectory_header_id+string(i);
+        metrics_euclidean.trajectory_header_id = trajectory_header_id;
+        metrics_euclidean.segment_id = segment_id;
     end
     % Euklidische Distanz
     metrics_euclidean.euclidean_distances = eucl_distances/1000;
