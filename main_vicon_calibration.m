@@ -1,6 +1,6 @@
 %% Daten importieren
 clear
-
+tic
 % filename = 'squares_isodiagonalA&B_300Hz_v2500_1.csv';
 % filename = 'record_20240702_153511_squares_isodiagonalA&B_final.csv'; % 700Hz
 % filename = 'record_20240702_155846_squares_isodiagonalA&B_final.csv'; % 250 Hz
@@ -15,7 +15,13 @@ clear
 % filename = 'record_20240711_143408_squares_isodiagonalA&B_final.csv'; % Vicon Daten nicht aufgezeichnet. 
 
 % filename = 'record_20240711_172935_all_final.csv';
-filename = 'record_20240715_145920_all_final.csv';
+
+filename = 'record_20240715_145920_all_final.csv'; % 700Hz - 93 Segmente
+% filename = 'record_20240715_145153_all_final.csv'; % 700Hz - 483 Segmente
+% filename = 'record_20240715_145153_1.csv';
+% filename = 'record_20240715_145153_5.csv';
+% filename = 'record_20240715_150237_all_final.csv'; % 700Hz - 183 Segmente
+
 
 filename_calibration = 'record_20240715_143311_calibration_run_final.csv';
 
@@ -23,8 +29,8 @@ data = importfile_vicon_abb_sync(filename);
 % Zeitstempel extrahieren
 date_time = data.timestamp(1);
 date_time = datetime(date_time,'ConvertFrom','epochtime','TicksPerSecond',1e9,'Format','dd-MMM-yyyy HH:mm:ss');
+% --> Erster Zeitstempel der Datei!!!
 
-calibration_run(filename_calibration,events)
 %% %%%%%%%%%%%%%%%%%%%%%% MANUELLE EINGABE %%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%
 
 % Interpolierte Sollbahn nutzen (sonst ABB Websocket) 
@@ -32,6 +38,9 @@ generate_soll = false;
 
 % Anzahl der Punkte der Sollbahn (falls generiert werden soll)
 keypoints_faktor = 1;
+
+% Anzahl der Segmente die zu einer Trajektorie/Gruppe zusammengefasst werden sollen
+group_size = 4; 
 
 % Metriken die berechnet werden sollen
 euclidean = true;
@@ -41,16 +50,13 @@ frechet = true;
 lcss = true;
 
 %%%% Kommt noch später !!!!
-% do_segments = true; 
+do_segments = true; 
 
 % Gesamttrajectorie unterteilen (Sonst komplette Messung als eine Trajectory)
 split = true;
 
 % Plots an (Aus empfohlen sonst sehr viele Plots)
 pflag = false;
-
-% Koordinatentransformation anhand der Timestamps (Sonst über Ereignisse und Stützpunkte)!
-sync_time = false;
 
 % Upload in DATENBANK
 upload2mongo = false;
@@ -59,17 +65,28 @@ upload2mongo = false;
 header_data = struct();
 header_data.data_id = [];                               % automatisch
 header_data.robot_model = "abb_irb4400";
-header_data.trajectory_type = "squares_iso_diagonal_A&B"; % "iso_path_A"
-header_data.path_solver = "interpolation"; % "abb_steuerung_websocket" "interpolation"
-header_data.recording_date = string(date_time); 
+header_data.start_time = [];
+header_data.end_time = [];
 header_data.real_robot = "true";
 header_data.number_of_points_ist = [];                  % automatisch
 header_data.number_of_points_soll = [];                 % automatisch
 header_data.sample_frequency_ist = [];                  % automatisch
 header_data.sample_frequency_soll = [];                 % automatisch
 header_data.source_data_ist = "vicon";
-header_data.source_data_soll = "interpolation"; % "abb_steuerung_websocket"
-header_data.evaluation_source = "matlab";
+header_data.source_data_soll = [];                      % automatisch für Interpolation und Websocket
+header_data.upload_date = string(datetime('now','Format','dd-MMM-yyyy HH:mm:ss'));
+
+% %%%%%%%% Dateneingabe Header Gruppe %%%%%%%%%%
+segment_data = struct();
+segment_data.segment_id = [];
+segment_data.data_id = []; 
+segment_data.start_time  = [];
+segment_data.end_time = [];
+segment_data.number_of_points_ist = [];                  % automatisch
+segment_data.number_of_points_soll = [];                 % automatisch
+segment_data.sample_frequency_ist = [];                  % automatisch
+segment_data.sample_frequency_soll = [];                 % automatisch
+
 
 %% Daten vorbereiten
 
@@ -145,8 +162,9 @@ vicon_timestamps = vicon_timestamps(1:size_min,:);
 
 % Array mit allen Vicon Daten
 vicon = [vicon_timestamps vicon_pose vicon_velocity vicon_accel];
+vicon_positions = vicon_pose(:,1:3);
 
-clear clean_NaN filename vicon_pose
+clear clean_NaN vicon_pose
 
 
 %%% ABB Daten %%%%
@@ -298,83 +316,19 @@ abb_orientation = abb(:,5:8);
 abb_velocity = abb(:,9);
 abb_jointstats = abb(:,10:15);
 
-clear idx idx1 idx2 idx_chain idx_from_idx is_point j i search_term data_ vicon_pose diff
+clear idx idx1 idx2 idx_chain idx_from_idx is_point j i search_term vicon_pose diff
 
 % Ausgabe der maximalen Geschwindigkeit
 velocity_max_vicon = max(vicon_velocity(:,4));
 velocity_max_abb = max(abb_velocity);
 
-%%%%%%%%%%%%%% Erstmal weg %%%%%%%%%%%%%%%%
-%% Berechnung der Stützpunkte im Vicon-System
+% Berechnung der Stützpunkte 
+new_base_points(vicon_positions, events_positions,idx_abb_events,data_timestamps,vicon_timestamps)
 
-% Schrittweite der Indizes für die nach gleichen Punkten gesucht wird
-min_index_distance = round(freq_vicon/3);
-
-% Herrausfinden der Stützpunkte und deren Indizes sowie den Abständen
-vicon_get_basepoints(vicon_positions, min_index_distance);
-
-% Ersten Punkt mitteln und Standardabweichung 
-p1 = vicon_positions(1:base_points_idx(1),:);
-stdev_p1 = std(p1);
-% stdev_p1 = 0.1;
-stdevnorm_p1 = norm(stdev_p1)*10;
-p1 = mean(p1);
-
-% Berechnung erneut mit Standabweichung
-vicon_get_basepoints(vicon_positions, min_index_distance,stdevnorm_p1);
-
-% Variablen die eventuell nicht mehr benötigt werden
-% clear min_index_distance stdevnorm_p1 stdev_p1 p1
-
-%%%%%%%%%%%%%%%% Erstmal weg %%%%%%%%%%%%%%%%%%%
-%% Berechnung der Referenzdaten für die Koordinatenstransformation
-% 
-% % Wenn die Transformation anhand (fast) synchroner Teilstamps erfolgen soll
-% % --> schlechte Ergebnisse! 
-% if sync_time == true 
-%     % Ermittlung von Referenzpunkten für die Koordinatentransformation
-%     % --> hier anhand von Punkten deren Timestamps sehr nahe beieinander liegen
-%     sync_indizes = [];
-%     for i = 1:length(abb_timestamps)
-%         for j = 1:length(vicon_timestamps)
-%             if abs(abb_timestamps(i)-vicon_timestamps(j)) < 1*1e-4 % max Intervall zwischen zwie Timestamps
-%                 sync_indizes = [sync_indizes; i j];
-%             end
-%         end
-%     end
-% 
-%     % Erstellen der Transformationsvektoren (Referenzpunkte)
-%     abb_reference = abb_positions(sync_indizes(:,1),:);
-%     vicon_reference = vicon_positions(sync_indizes(:,2),:);
-% 
-%     clear sync_indizes 
-% 
-% % Wenn die Transformation anhand der ermittelten Stützpunkte erfolgen soll
-% else
-% 
-%     % Ermittlung des Startpunkts im ABB Koordinatensystem über Mittelwert
-%     diffs = diff(abb_positions);
-%     dists = sqrt(sum(diffs.^2, 2));
-% 
-%     % Erste Index der Distanz der größer ist
-%     first_idx = find(dists > 0.05,1);
-%     p1_abb = mean(abb_positions(1:first_idx-1,:));
-%     % p1_abb = [598.7 -501.1 1501.5]; % --> Testzweck
-% 
-%     % Erstellen der Transformationsvektoren (Referenzpunkte)
-%     abb_reference = [p1_abb; events_positions];
-%     % abb_reference = events_positions; % --> Testzweck
-%     vicon_reference = base_points_vicon;
-% 
-%     % Überprüfen der Dimensionen der Transformationsvektoren
-%     if ~isequal(size(abb_reference), size(vicon_reference))
-%         error('Die Referenzpunkte für die Koordinatentransformation haben eine unterschiedliche Anzahl an Elementen! Setzen Sie den Paramater sync_time = true oder passen Sie die Anzahl der vicon_base_points oder events_positions an!');
-%     end
-% 
-%     clear p1_abb diffs dists 
-% 
-% end
 %% Transformation der Koordinaten von Vicon-System zu Abb-System
+
+% Ermittlung der Referenzwerte aus der Kalibirierungs-Messung
+calibration_run(filename_calibration,events)
 
 % Mittelwerte der Punkte
 abb_mean = mean(abb_reference);
@@ -426,35 +380,8 @@ clear diffs_reference eucl_dists i
 
 %% Vicon Zerteilen und Sollbahngenerierung
 
-% Generiere Sollbahn mit gemittelen Richtungsvektor der Vicon-Daten
-% generate_soll_vicon_no_events(vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
-
-% Ermittlung des Startpunkts im ABB Koordinatensystem über Mittelwert
-diffs = diff(abb_positions);
-dists = sqrt(sum(diffs.^2, 2));
-% Erste Index der Distanz der größer ist
-first_idx = find(dists > 0.05,1);
-p1_abb = mean(abb_positions(1:first_idx-1,:));
-abb_reference = [p1_abb; events_positions];
-
 % Generiere Sollbahn mit den getriggerten Ereignissen aus der ABB-Steuerung
-generate_soll_vicon_events(abb_reference,vicon,vicon_transformed,base_points_vicon,base_points_dist,base_points_idx,keypoints_faktor, stdevnorm_p1)
-
-
-%% ABB zerteilen (mit Spezialfällen)
-
-% Berechnung der Distanz vom Messstartpunkt bis zum ersten Ereignis mit 2% Toleranz
-% abb_first_distance = norm(abb_reference(1,:)-abb_reference(2,:));
-% abb_tolerance_first_distance = 0.02*abb_first_distance;
-% check_first_distance = find(abs(dist_segment_soll-abb_first_distance)<= abb_tolerance_first_distance);
-% abb_events_idx = find(abb_events(:,1) ~=0);
-
-% % Wenn das erte Ereinis nur weg soll, irgendwo random anfängt
-% if isempty(check_first_distance)
-%     abb_cleaned  = abb(abb_events_idx(2)-1:abb_events_idx(end),:);
-% else
-%     abb_cleaned  = abb(abb_events_idx(1)-1:abb_events_idx(end),:);
-% end
+new_generate_soll_vicon_events(abb_base_points,vicon,vicon_transformed,base_points_vicon,base_points_idx,base_points_dist,keypoints_faktor, 1.5)
 
 %% ABB zerteilen (Bahn beginnt ab erstem Ereigniss)
 
@@ -462,16 +389,10 @@ abb_events_idx = find(abb_events(:,1) ~=0);
 segments_abb = cell(1,size(segments_ist,2));
 
 for i = 1:1:size(segments_ist,2)
-    if i == 1 
-        segments_abb{i} = abb(1:abb_events_idx(i),:);
-    else
-        segments_abb{i} = abb(abb_events_idx(i-1):abb_events_idx(i),:);
-    end
+        segments_abb{i} = abb(abb_events_idx(i):abb_events_idx(i+1),:);
 end
 
-%% Bahnabschnitte zu Trajectorien zusammenfassen
-%%%%%%%%%% Angepasster Code vor Abgage %%%%%%%%%%
-
+%%
 % Die erste Position interssiert jetzt nichtmehr!
 % abb_reference = abb_reference(2:end,:);
 % vicon_reference_transformed = vicon_reference_transformed(2:end,:);
@@ -488,7 +409,7 @@ home_first_idx = ismember(abb_reference, home_position,'rows');
 home_first_idx = find(home_first_idx,1);
 
 clear counts_home C ic 
-%%
+%% 
 % Bestimmung der Homeposition und entsprechende Anzahl der Trajektorien 
 traj_home_vicon = vicon_reference_transformed(home_first_idx,:); % Hier war vorher einfach die zweite Position festgelegt
 traj_search = abs(vicon_reference_transformed-traj_home_vicon);
@@ -501,73 +422,75 @@ end
 % traj_home_vicon_idx = find(traj_search_norms == 0);
 % traj_search_norms = traj_search_norms(traj_home_vicon_idx-1:end)
 % traj_home_vicon_idx = find(traj_search_norms <= 1)
-%%
+
  traj_home_vicon_idx = find(traj_search_norms <= 5);
- trajectories_num = size(traj_home_vicon_idx,1)-1;
-%%
-% Einzelne Vicon und Soll Trajectorien anhand der Homepositionen zerlegen
-trajectories_ist = cell(1,trajectories_num);
-trajectories_soll = cell(1,trajectories_num);
-for i = 1:trajectories_num
-    start = traj_home_vicon_idx(i);
-    last = traj_home_vicon_idx(i+1)-1;
+ num_trajectories = size(traj_home_vicon_idx,1)-1;
+
+%% Bahnabschnitte zu Trajectorien zusammenfassen
+
+
+% Anzahl der Bahnabschnitte
+num_segments = size(segments_soll,2);
+num_trajectories = floor(num_segments/group_size);
+
+trajectories_ist = cell(1,num_trajectories);
+trajectories_soll = cell(1,num_trajectories);
+trajectories_abb = cell(1,num_trajectories);
+
+% Zusammenfassen der Segmente zu Trajektorien
+j = 0; 
+for i = 1:1:num_trajectories
+    start = j+1;
+    last = start+group_size-1;
     traj_ist = [];
     traj_soll = [];
+    traj_abb = [];
     for j = start:1:last
         traj_ist = [traj_ist; segments_ist{j}];
         traj_soll = [traj_soll; segments_soll{j}];
+        traj_abb = [traj_abb; segments_abb{j}]; 
     end
     trajectories_ist{i} = traj_ist;
-    trajectories_soll{i} = traj_soll;           
-end
-
-% Einzelne ABB Trajectorien anhand der Events und Homeposition zerlegen
-trajectories_abb = cell(1,trajectories_num);
-
-
-idx_diff_home = home_first_idx-1;
-for i = 1:trajectories_num
-    if i == 1 && traj_search(1) <= 5
-        traj_abb = abb(1:abb_events_idx(i)-1,:);
-    else
-    start = traj_home_vicon_idx(i)-1;
-    last = traj_home_vicon_idx(i+1)-1;
-    start = abb_events_idx(start);
-    last = abb_events_idx(last)-1;
-    traj_abb = abb(start:last,:);
-    end
+    trajectories_soll{i} = traj_soll;  
     trajectories_abb{i} = traj_abb;
 end
 
-%%%%%%% SEGMENTE USW FEHLEN NOCH BEI ABBB--> Am besten ich schmeiss in die
-%%%%%%% Funktion von der Sollbahngenerierung dait auch alles vernünftig
-%%%%%%% ist. 
+clear traj_ist traj_soll traj_abb
 
 %% Vorbereiten für Upload in Datenbank 
 
 % Einmal vorab die Base für die ID generieren
-trajectory_header_id_base = string(round(posixtime(datetime('now','TimeZone','UTC'))));
+trajectory_header_id_base = string(round(posixtime(datetime(date_time,'TimeZone','UTC'))));
 trajectory_header_id_base_segments = trajectory_header_id_base + "_";
 
+trajectory_header_ids = strings(num_trajectories,1);
+
+
 % Leere Cell-Arrays für die Bewegungsdaten und Header
-struct_data = cell(1,trajectories_num);
-% struct_data_segments = cell(1,num_segments);
-struct_header = cell(1,trajectories_num);
-% struct_header_segments = cell(1,num_segments);
+struct_data = cell(1,num_trajectories);
+struct_data_segments = cell(1,num_segments);
+struct_header = cell(1,num_trajectories);
+struct_header_segments = cell(1,num_segments);
+
+struct_group_segments = cell(1,num_segments);
+
 
 % Datenbank Struktur für ganze Messfahrten
-for i = 1:1:trajectories_num 
+for i = 1:1:num_trajectories 
 
     % Geschwindigkeit (nur für generierte Sollbahn)
     defined_velocity = max(trajectories_ist{i}(:,12));
 
+    % Zeitstempel extrahieren und abspeichern
+    timestamp = [data_(idx_abb_events(i*group_size-group_size+1),1); data_(idx_abb_events(i*group_size+1),1) ];
+    trajectory_header_ids(i) = timestamp(1);
     % Funktionen zur Erzeugung der Datenstruktur für Soll und Istbahn
     if generate_soll == true
         datasoll_vicon(trajectories_soll{i}, defined_velocity, generate_soll);
     else
         datasoll_vicon(trajectories_abb{i}, defined_velocity, generate_soll);
     end
-    dataist_vicon(trajectories_ist{i},trajectory_header_id_base,i)
+    new_dataist_vicon(trajectories_ist{i},trajectory_header_id_base,i)
 
     % Istdaten in die Struktur schreiben
     struct_data{i} = data_ist_part;
@@ -580,9 +503,9 @@ for i = 1:1:trajectories_num
 
     % Struktur für Header erzeugen
     if generate_soll == true
-        header2struct(trajectory_header_id, header_data, trajectories_ist{i}, trajectories_soll{i}, generate_soll);
+        new_header2struct(trajectory_header_id, header_data, timestamp, trajectories_ist{i}, trajectories_soll{i}, generate_soll);
     else
-        header2struct(trajectory_header_id, header_data, trajectories_ist{i}, trajectories_abb{i}, generate_soll);
+        new_header2struct(trajectory_header_id, header_data, timestamp, trajectories_ist{i}, trajectories_abb{i}, generate_soll);
     end
     struct_header{i} = header_data;
 end
@@ -666,9 +589,7 @@ end
 % 
 % end
 
-%%
-do_segments = true;
-num_segments = size(segments_soll,2);
+
 %% Berechnung der Metriken für die Bahnsegmente
 
 % Berechnung der Metriken für die einzelnen Bahnabschnitte   
@@ -749,6 +670,7 @@ if do_segments == true
     end
 end
 
+toc
 
 %% Upload in Datenbank 
 
@@ -773,7 +695,7 @@ if upload2mongo == true
 
     % Anzahl Trajektorien auf 1 setzen falls...
     if split == false
-        trajectories_num = 1;
+        num_trajectories = 1;
 
         a = cell(1,1);
 
@@ -801,7 +723,7 @@ if upload2mongo == true
         clear a
     end
 
-    for i = 1:1:trajectories_num
+    for i = 1:1:num_trajectories
     
         % Löscht die Kostenmatrix falls Datenmenge zu groß für MongoDB
         struct_dtw{i} = check_bytes(struct_dtw{i},'dtw');
@@ -824,6 +746,7 @@ if upload2mongo == true
         end
     end
 end
+
 %%
 pflag = false;
 %% PLOTS
@@ -925,16 +848,19 @@ for i = 1:size(segments_soll,2)
 % axis equal
 end
 hold off
-%%
+%% Plotten einzelner Segmente
 figure('Color','white');
 % plot3(vicon_transformed(:,1),vicon_transformed(:,2),vicon_transformed(:,3),'k',LineWidth=3)
 hold on
-plot3(segments_ist{1}(:,2),segments_ist{1}(:,3),segments_ist{1}(:,4),'b')
-plot3(segments_abb{1}(:,2),segments_abb{1}(:,3),segments_abb{1}(:,4),'r')
-plot3(segments_ist{82}(:,2),segments_ist{82}(:,3),segments_ist{82}(:,4),'b')
-plot3(segments_soll{82}(:,1),segments_soll{82}(:,2),segments_soll{82}(:,3),'r')
-plot3(segments_ist{83}(:,2),segments_ist{83}(:,3),segments_ist{83}(:,4),'b')
-plot3(segments_soll{83}(:,1),segments_soll{83}(:,2),segments_soll{83}(:,3),'r')
+plot3(segments_ist{end-1}(:,2),segments_ist{end-1}(:,3),segments_ist{end-1}(:,4),'b')
+plot3(segments_abb{end-1}(:,2),segments_abb{end-1}(:,3),segments_abb{end-1}(:,4),'r')
+plot3(segments_ist{end}(:,2),segments_ist{end}(:,3),segments_ist{end}(:,4),'b')
+plot3(segments_abb{end}(:,2),segments_abb{end}(:,3),segments_abb{end}(:,4),'r')
+% plot3(segments_soll{1}(:,1),segments_soll{1}(:,2),segments_soll{1}(:,3),'r')
+% plot3(segments_ist{82}(:,2),segments_ist{82}(:,3),segments_ist{82}(:,4),'b')
+% plot3(segments_soll{82}(:,1),segments_soll{82}(:,2),segments_soll{82}(:,3),'r')
+% plot3(segments_ist{83}(:,2),segments_ist{83}(:,3),segments_ist{83}(:,4),'b')
+% plot3(segments_soll{83}(:,1),segments_soll{83}(:,2),segments_soll{83}(:,3),'r')
 legend('ist','soll')
 xlabel('x'); ylabel('y'); zlabel('z');
 %% PLOT DER KOORDNIATENTRANSFORMATION

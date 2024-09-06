@@ -171,9 +171,9 @@ end
 % % Ist = trajectories_ist{6};
 % % Soll = trajectories_soll{6};
 % 
-soll = struct_dtw{6}.dtw_X*1000;
-ist = struct_dtw{6}.dtw_Y*1000;
-N = length(struct_dtw{6}.dtw_path);
+soll = struct_sidtw_segments{7}.dtw_X*1000;
+ist = struct_sidtw_segments{7}.dtw_Y*1000;
+N = length(struct_sidtw_segments{7}.dtw_path);
 
 % % Indizes der zu löschenden Zeilen ermitteln
 % rows_to_delete = 2:2:size(ist, 1);
@@ -206,8 +206,8 @@ title('DTW');
 % view(2)
 % % axis padded
 %%%%%%% Vergleich DTW DFD 3D
-xlim([1372 1381]);
-ylim([-308 -299]);
+% xlim([1372 1381]);
+% ylim([-308 -299]);
 xlabel('\textbfx'); ylabel('\textbfy'); zlabel('\textbfz');
 grid on
 % 

@@ -18,7 +18,7 @@ function datasoll_vicon(trajectory_soll, defined_velocity, interpolate)
         events_soll = [];
 
     else
-    % Für gemessene Sollbahnen
+    % Für gemessene Sollbahnen (ABB) 
         
         % Extrahiere die Daten aus Array
         timestamp_soll = trajectory_soll(:, 1);

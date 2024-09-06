@@ -1,4 +1,4 @@
-function generate_soll_vicon_events(abb_reference,data,position,points,points_dist,points_idx,keypoints_faktor,threshold)
+function generate_soll_vicon_events(abb_reference,data,position,points,points_idx,points_dist,keypoints_faktor,threshold)
 %% Zum Testen
 % clear;
 % % load base_points_test2.mat

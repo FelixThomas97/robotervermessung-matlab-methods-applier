@@ -184,7 +184,15 @@ end
 
 % Erstellen der Transformationsvektoren (Referenzpunkte) + Startwert
 abb_reference = [p1_abb; events_positions]; 
-vicon_reference = [p1_vicon;vicon_base_points];
+vicon_reference = [p1_vicon; vicon_base_points];
+
+%%
+% Berechnung der Abstände zwischen den Punkten der Viconmessung
+dists = zeros(length(vicon_reference)-1,1);
+for i = 1:length(vicon_reference)-1
+    diffs = vicon_reference(i+1, :) - vicon_reference(i, :);
+    dists(i) = norm(diffs);
+end
 
 %% Koordinatentransformation
 % 
@@ -223,6 +231,8 @@ vicon_reference = [p1_vicon;vicon_base_points];
 
 
 %% Laden in den Workspace
+
 assignin('base','abb_reference',abb_reference)
 assignin("base","vicon_reference",vicon_reference)
+
 end
