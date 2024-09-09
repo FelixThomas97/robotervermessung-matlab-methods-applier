@@ -16,7 +16,8 @@ tic
 
 % filename = 'record_20240711_172935_all_final.csv';
 
-filename = 'record_20240715_145920_all_final.csv'; % 700Hz - 93 Segmente
+ filename = 'record_20240715_145920_all_final.csv'; % 700Hz - 93 Segmente
+% filename = 'record_20240715_143311_calibration_run_final.csv';
 % filename = 'record_20240715_145153_all_final.csv'; % 700Hz - 483 Segmente
 % filename = 'record_20240715_145153_1.csv';
 % filename = 'record_20240715_145153_5.csv';
@@ -34,7 +35,7 @@ date_time = datetime(date_time,'ConvertFrom','epochtime','TicksPerSecond',1e9,'F
 %% %%%%%%%%%%%%%%%%%%%%%% MANUELLE EINGABE %%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%
 
 % Interpolierte Sollbahn nutzen (sonst ABB Websocket) 
-generate_soll = false;
+generate_soll = true;
 
 % Anzahl der Punkte der Sollbahn (falls generiert werden soll)
 keypoints_faktor = 1;
@@ -60,6 +61,8 @@ pflag = false;
 
 % Upload in DATENBANK
 upload2mongo = false;
+
+upload2postgresql = true;
 
 %%%%%%%% Dateneingabe Header %%%%%%%%%%
 header_data = struct();
@@ -927,3 +930,460 @@ xlabel('x'); ylabel('y'); zlabel('z');
 %% Plot der maximalen und mittleren Abweichungen
 
 plot_errors(segments_ist,struct_dtw_segments,struct_frechet_segments,struct_lcss_segments,struct_sidtw_segments,struct_euclidean_segments);
+
+%% Upload in PostgreSQL 
+if upload2postgresql == true
+    
+    % Verbindung mit PostgreSQL
+    datasource = "RobotervermessungMATLAB";
+    username = "postgres";
+    password = "200195Beto";
+    conn = postgresql(datasource,username,password);
+
+    % Überprüfe Verbindung
+    if isopen(conn)
+        disp('Verbindung erfolgreich hergestellt');
+    else
+        disp('Verbindung fehlgeschlagen');
+    end
+
+    postgres_data = table();
+    postgres_data_segments = table();
+    postgres_dtw = table();
+    postgres_dtw_segments = table();
+    postgres_euclidean = table();
+    postgres_euclidean_segments = table();
+    postgres_frechet = table();
+    postgres_frechet_segments = table();
+    postgres_header = table();
+    postgres_header_segments = table();
+    postgres_lcss = table();
+    postgres_lcss_segments = table();
+    postgres_sidtw = table();
+    postgres_sidtw_segments = table();
+
+    for i = 1:length(struct_data)
+        row = struct2table(struct_data{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id{1});
+        row.segment_id = string(row.segment_id{1});
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            if isnumeric(row.(col{1}){1})
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(row.(col{1}){1}), ','))};
+            end
+        end
+        
+        postgres_data = [postgres_data; row];
+    end
+
+    for i = 1:length(struct_data_segments)
+        row = struct2table(struct_data_segments{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id{1});
+        row.segment_id = string(row.segment_id{1});
+        
+        % Format double array columns to PostgreSQL array format
+        doubleColumns = row.Properties.VariableNames(3:end);
+        for col = doubleColumns
+            row.(col{1}) = {sprintf('{%s}', strjoin(string(row.(col{1}){1}), ','))};
+        end
+        
+        postgres_data_segments = [postgres_data_segments; row];
+    end
+
+    for i = 1:length(struct_dtw)
+        row = struct2table(struct_dtw{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
+        end
+        
+        postgres_dtw = [postgres_dtw; row];
+    end
+
+    for i = 1:length(struct_dtw_segments)
+        row = struct2table(struct_dtw_segments{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
+        end
+        
+        postgres_dtw_segments = [postgres_dtw_segments; row];
+    end
+
+    for i = 1:length(struct_sidtw)
+        row = struct2table(struct_sidtw{i}, 'AsArray', true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Special handling for dtw_X, dtw_Y, dtw_accdist, and dtw_path
+            if ismember(col, {'dtw_X', 'dtw_Y', 'dtw_accdist', 'dtw_path'})
+                if isnumeric(colData) && ismatrix(colData)
+                    % For 2D arrays (e.g., dtw_X, dtw_Y)
+                    if size(colData, 2) > 1
+                        arrayStr = arrayfun(@(r) sprintf('{%s}', strjoin(string(colData(r,:)), ',')), 1:size(colData,1), 'UniformOutput', false);
+                        row.(col{1}) = {sprintf('{%s}', strjoin(arrayStr, ','))};
+                    else
+                        % For 1D arrays (e.g., dtw_accdist)
+                        row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+                    end
+                elseif isstruct(colData)
+                    % For struct arrays (e.g., dtw_path)
+                    jsonArray = arrayfun(@(s) ...
+                        sprintf('{"x": %f, "y": %f}', s.x, s.y), ...
+                        colData, 'UniformOutput', false);
+                    row.(col{1}) = {sprintf('[%s]', strjoin(jsonArray, ','))};
+                end
+            elseif isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert other numeric arrays to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData(:)'), ','))};
+            end
+        end
+        
+        postgres_sidtw = [postgres_sidtw; row];
+    end
+
+    for i = 1:length(struct_euclidean)
+        row = struct2table(struct_euclidean{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Special handling for the euclidean_intersections struct
+            if isstruct(colData) && strcmp(col, 'euclidean_intersections')
+                % Convert the struct into a JSON-like string
+                jsonArray = arrayfun(@(s) ...
+                    sprintf('{"x": [%s], "y": [%s], "z": [%s]}', ...
+                    strjoin(string(s.x), ','), ...
+                    strjoin(string(s.y), ','), ...
+                    strjoin(string(s.z), ',')), ...
+                    colData, 'UniformOutput', false);
+                row.(col{1}) = {sprintf('[%s]', strjoin(jsonArray, ','))};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
+        end
+        
+        postgres_euclidean = [postgres_euclidean; row];
+    end
+
+    for i = 1:length(struct_euclidean_segments)
+        row = struct2table(struct_euclidean_segments{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Special handling for the euclidean_intersections struct
+            if isstruct(colData) && strcmp(col, 'euclidean_intersections')
+                % Convert the struct into a JSON-like string
+                jsonArray = arrayfun(@(s) ...
+                    sprintf('{"x": [%s], "y": [%s], "z": [%s]}', ...
+                    strjoin(string(s.x), ','), ...
+                    strjoin(string(s.y), ','), ...
+                    strjoin(string(s.z), ',')), ...
+                    colData, 'UniformOutput', false);
+                row.(col{1}) = {sprintf('[%s]', strjoin(jsonArray, ','))};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
+        end
+        
+        postgres_euclidean_segments = [postgres_euclidean_segments; row];
+    end
+
+    for i = 1:length(struct_frechet)
+        row = struct2table(struct_frechet{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
+        end
+        
+        postgres_frechet = [postgres_frechet; row];
+    end
+
+    for i = 1:length(struct_frechet_segments)
+        row = struct2table(struct_frechet_segments{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
+        end
+        
+        postgres_frechet_segments = [postgres_frechet_segments; row];
+    end
+
+    for i = 1:length(struct_header)
+        row = struct2table(struct_header{i}, "AsArray", true);
+        
+        % Format string columns
+        row.data_id = string(row.data_id);        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
+        end
+        
+        postgres_header = [postgres_header; row];
+    end
+
+    for i = 1:length(struct_header_segments)
+        row = struct2table(struct_header_segments{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
+        end
+        
+        postgres_header_segments = [postgres_header_segments; row];
+    end
+
+    for i = 1:length(struct_lcss)
+        row = struct2table(struct_lcss{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
+        end
+        
+        postgres_lcss = [postgres_lcss; row];
+    end
+
+    for i = 1:length(struct_lcss_segments)
+        row = struct2table(struct_lcss_segments{i}, "AsArray", true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
+        end
+        
+        postgres_lcss_segments = [postgres_lcss_segments; row];
+    end
+
+    for i = 1:length(struct_sidtw_segments)
+        row = struct2table(struct_sidtw_segments{i}, 'AsArray', true);
+        
+        % Format string columns
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Special handling for dtw_X, dtw_Y, dtw_accdist, and dtw_path
+            if ismember(col, {'dtw_X', 'dtw_Y', 'dtw_accdist', 'dtw_path'})
+                if isnumeric(colData) && ismatrix(colData)
+                    % For 2D arrays (e.g., dtw_X, dtw_Y)
+                    if size(colData, 2) > 1
+                        arrayStr = arrayfun(@(r) sprintf('{%s}', strjoin(string(colData(r,:)), ',')), 1:size(colData,1), 'UniformOutput', false);
+                        row.(col{1}) = {sprintf('{%s}', strjoin(arrayStr, ','))};
+                    else
+                        % For 1D arrays (e.g., dtw_accdist)
+                        row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+                    end
+                elseif isstruct(colData)
+                    % For struct arrays (e.g., dtw_path)
+                    jsonArray = arrayfun(@(s) ...
+                        sprintf('{"x": %f, "y": %f}', s.x, s.y), ...
+                        colData, 'UniformOutput', false);
+                    row.(col{1}) = {sprintf('[%s]', strjoin(jsonArray, ','))};
+                end
+            elseif isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert other numeric arrays to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData(:)'), ','))};
+            end
+        end
+        
+        postgres_sidtw_segments = [postgres_sidtw_segments; row];
+    end
+
+    % Close connection after all operations are done
+    %sqlwrite(conn,"trajectories.trajectories_header", postgres_header);
+    %sqlwrite(conn,"trajectories.trajectories_header_segments", postgres_header_segments);
+    %sqlwrite(conn,"trajectories.trajectories_data", postgres_data);
+    %sqlwrite(conn,"trajectories.trajectories_data", postgres_data_segments);
+    %sqlwrite(conn,"trajectories.trajectories_metrics_euclidean", postgres_euclidean);
+    %sqlwrite(conn,"trajectories.trajectories_metrics_euclidean", postgres_euclidean_segments);
+    %sqlwrite(conn,"trajectories.trajectories_header_segments", postgres_header_segments);
+
+    
+end
+
+%% UPLOAD VON DATEN
+
+
+    %sqlwrite(conn, "trajectories.trajectories_metrics_dtw_johnen", postgres_sidtw_segments);
+    %sqlwrite(conn, "trajectories.trajectories_metrics_discrete_frechet", postgres_frechet);
+    %sqlwrite(conn, "trajectories.trajectories_metrics_discrete_frechet", postgres_frechet_segments);
+    %sqlwrite(conn, "trajectories.trajectories_metrics_lcss", postgres_lcss);
+    %sqlwrite(conn, "trajectories.trajectories_metrics_lcss", postgres_lcss_segments);
+
+
+

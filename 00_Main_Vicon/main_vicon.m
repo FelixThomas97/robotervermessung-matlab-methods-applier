@@ -84,7 +84,7 @@ date_time = datetime(date_time,'ConvertFrom','epochtime','TicksPerSecond',1e9,'F
 
 % Timestamps in Sekunden
 data{:,1} = (data{:,1}- data{1,1})/1e9;
-data_timestamps = data{:,1};
+data_timestamps = string(data{:,1});
 
 %%% VICON DATEN %%%
 
