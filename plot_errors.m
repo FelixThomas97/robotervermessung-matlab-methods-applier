@@ -1,4 +1,4 @@
-function plot_errors(segments_ist,struct_dtw_segments,struct_frechet_segments,struct_lcss_segments,struct_sidtw_segments,struct_euclidean_segments)
+function plot_errors(num_segments,num_trajectories,struct_dtw_segments,struct_frechet_segments,struct_lcss_segments,struct_sidtw_segments,struct_euclidean_segments,struct_dtw,struct_frechet,struct_lcss,struct_sidtw,struct_euclidean)
 
 % Für Bahnvergleich
 blau = [0 0.4470 0.7410]; % Standard Blau
@@ -14,7 +14,7 @@ c6 = [0.3010 0.7450 0.9330];
 c7 = [0.6350 0.0780 0.1840];
 
 %% Extrahieren der Abstände
-for i = 1:size(segments_ist,2) 
+for i = 1:num_segments
     %%%%%%%%%% SEGMETE
     xs_dists_av_dtw(i) = struct_dtw_segments{i}.dtw_average_distance*1000;
     xs_dists_av_frechet(i) = struct_frechet_segments{i}.frechet_average_distance *1000;
@@ -27,6 +27,20 @@ for i = 1:size(segments_ist,2)
     xs_dists_max_lcss(i) = struct_lcss_segments{i}.lcss_max_distance*1000;
     xs_dists_max_sidtw(i) = struct_sidtw_segments{i}.dtw_max_distance*1000;
     xs_dists_max_eucl(i) = struct_euclidean_segments{i}.euclidean_max_distance*1000;
+end
+
+for i = 1:num_trajectories
+    xt_dists_av_dtw(i) = struct_dtw{i}.dtw_average_distance*1000;
+    xt_dists_av_frechet(i) = struct_frechet{i}.frechet_average_distance *1000;
+    xt_dists_av_lcss(i) = struct_lcss{i}.lcss_average_distance*1000;
+    xt_dists_av_sidtw(i) = struct_sidtw{i}.dtw_average_distance*1000;
+    xt_dists_av_eucl(i) = struct_euclidean{i}.euclidean_average_distance*1000;
+
+    xt_dists_max_dtw(i) = struct_dtw{i}.dtw_max_distance*1000;
+    xt_dists_max_frechet(i) = struct_frechet{i}.frechet_max_distance *1000;
+    xt_dists_max_lcss(i) = struct_lcss{i}.lcss_max_distance*1000;
+    xt_dists_max_sidtw(i) = struct_sidtw{i}.dtw_max_distance*1000;
+    xt_dists_max_eucl(i) = struct_euclidean{i}.euclidean_max_distance*1000;
 end
 
 %% Mittel und Max Durchschnittswerte 
@@ -44,17 +58,28 @@ figure('Color','white');
 title('Mittlere Abweichungen')
 hold on
 
-plot(xs_dists_av_dtw,LineWidth=2)
-plot(xs_dists_av_frechet,LineWidth=2)
-plot(xs_dists_av_lcss,LineWidth=2)
-plot(xs_dists_av_sidtw,LineWidth=2)
-plot(xs_dists_av_eucl,LineWidth=2)
+
+% Trajektorien
+plot(xt_dists_av_dtw,LineWidth=2.5,Color=c1)
+plot(xt_dists_av_frechet,LineWidth=2.5,Color=c2)
+plot(xt_dists_av_lcss,LineWidth=2.5,Color=c3)
+plot(xt_dists_av_sidtw,LineWidth=2.5,Color=c4)
+plot(xt_dists_av_eucl,LineWidth=2.5,Color=c5)
+% Segmente
+plot(xs_dists_av_dtw,LineWidth=1,Color=c1)
+plot(xs_dists_av_frechet,LineWidth=1,Color=c2)
+plot(xs_dists_av_lcss,LineWidth=1,Color=c3)
+plot(xs_dists_av_sidtw,LineWidth=1,Color=c4)
+plot(xs_dists_av_eucl,LineWidth=1,Color=c5)
+
+xline(num_trajectories)
 
 
-xlabel('Bahnsegmente');
+xlabel('Bahnsegmente/Trajektorien');
 ylabel('Abweichung in mm');
 legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
 
+grid on
 axis padded
 hold off
 
@@ -63,17 +88,29 @@ figure('Color','white');
 title('Maximale Abweichung')
 hold on
 
-plot(xs_dists_max_dtw,LineWidth=2)
-plot(xs_dists_max_frechet,LineWidth=2)
-plot(xs_dists_max_lcss,LineWidth=2)
-plot(xs_dists_max_sidtw,LineWidth=2)
-plot(xs_dists_max_eucl,LineWidth=2)
+
+% Trajektorien
+plot(xt_dists_max_dtw,LineWidth=2.5,Color=c1)
+plot(xt_dists_max_frechet,LineWidth=2.5,Color=c2)
+plot(xt_dists_max_lcss,LineWidth=2.5,Color=c3)
+plot(xt_dists_max_sidtw,LineWidth=2.5,Color=c4)
+plot(xt_dists_max_eucl,LineWidth=2.5,Color=c5)
+
+% Segmente
+plot(xs_dists_max_dtw,LineWidth=1,Color=c1)
+plot(xs_dists_max_frechet,LineWidth=1,Color=c2)
+plot(xs_dists_max_lcss,LineWidth=1,Color=c3)
+plot(xs_dists_max_sidtw,LineWidth=1,Color=c4)
+plot(xs_dists_max_eucl,LineWidth=1,Color=c5)
+
+xline(num_trajectories)
 
 
-xlabel('Bahnsegmente');
+xlabel('Bahnsegmente/Trajektorien');
 ylabel('Abweichung in mm');
 legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
 
+grid on
 axis padded
 hold off
 

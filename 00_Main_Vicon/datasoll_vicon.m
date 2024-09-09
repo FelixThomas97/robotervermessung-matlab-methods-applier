@@ -13,9 +13,9 @@ function datasoll_vicon(trajectory_soll, defined_velocity, interpolate)
         z_soll = trajectory_soll(:, 3)/1000;
         % Daten die nicht verfügbar sind
         q_soll = zeros(num_points, 4);
-        tcp_velocity_soll = defined_velocity;
-        joint_state_soll = [];        
-        events_soll = [];
+        % tcp_velocity_soll = defined_velocity;
+        % joint_state_soll = 0;        
+        % events_soll = 0;
 
     else
     % Für gemessene Sollbahnen (ABB) 
@@ -42,9 +42,11 @@ function datasoll_vicon(trajectory_soll, defined_velocity, interpolate)
     data_soll.qy_soll = q_soll(:,2);
     data_soll.qz_soll = q_soll(:,3);
     data_soll.qw_soll = q_soll(:,4);
-    data_soll.tcp_velocity_soll = tcp_velocity_soll;
-    data_soll.joint_state_soll = joint_state_soll;
-    data_soll.events_soll = events_soll;   
+    if interpolate == false
+        data_soll.tcp_velocity_soll = tcp_velocity_soll;
+        data_soll.joint_state_soll = joint_state_soll;
+        data_soll.events_soll = events_soll;   
+    end
 
 
     %% Laden in Workspace

@@ -11,12 +11,14 @@ tic
 % filename = 'record_20240711_144811_squares_isodiagonalA&B_15s_final.csv'; % 100Hz
 % filename = 'record_20240711_164202_squares_isodiagonalA&B_final (1).csv'; % 300Hz
 
+filename = 'record_20240712_165830_squares_isodiagonalA&B_final.csv';
+
 % filename = 'record_20240711_170652_squares_isodiagonalA&B_final (1).csv'; % 350Hz funzt nicht.
 % filename = 'record_20240711_143408_squares_isodiagonalA&B_final.csv'; % Vicon Daten nicht aufgezeichnet. 
 
 % filename = 'record_20240711_172935_all_final.csv';
 
- filename = 'record_20240715_145920_all_final.csv'; % 700Hz - 93 Segmente
+% filename = 'record_20240715_145920_all_final.csv'; % 700Hz - 93 Segmente
 % filename = 'record_20240715_143311_calibration_run_final.csv';
 % filename = 'record_20240715_145153_all_final.csv'; % 700Hz - 483 Segmente
 % filename = 'record_20240715_145153_1.csv';
@@ -24,9 +26,12 @@ tic
 % filename = 'record_20240715_150237_all_final.csv'; % 700Hz - 183 Segmente
 
 
-filename_calibration = 'record_20240715_143311_calibration_run_final.csv';
+% filename_calibration = 'record_20240715_143311_calibration_run_final.csv';
+filename_calibration = 'record_20240712_165830_squares_isodiagonalA&B_final.csv';
 
 data = importfile_vicon_abb_sync(filename);
+
+
 % Zeitstempel extrahieren
 date_time = data.timestamp(1);
 date_time = datetime(date_time,'ConvertFrom','epochtime','TicksPerSecond',1e9,'Format','dd-MMM-yyyy HH:mm:ss');
@@ -35,7 +40,7 @@ date_time = datetime(date_time,'ConvertFrom','epochtime','TicksPerSecond',1e9,'F
 %% %%%%%%%%%%%%%%%%%%%%%% MANUELLE EINGABE %%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%
 
 % Interpolierte Sollbahn nutzen (sonst ABB Websocket) 
-generate_soll = true;
+generate_soll = false;
 
 % Anzahl der Punkte der Sollbahn (falls generiert werden soll)
 keypoints_faktor = 1;
@@ -424,6 +429,7 @@ end
 % Anzahl der Bahnabschnitte
 num_segments = size(segments_soll,2);
 num_trajectories = floor(num_segments/group_size);
+num_segments =  num_trajectories*group_size;
 
 trajectories_ist = cell(1,num_trajectories);
 trajectories_soll = cell(1,num_trajectories);
@@ -929,9 +935,11 @@ xlabel('x'); ylabel('y'); zlabel('z');
 
 %% Plot der maximalen und mittleren Abweichungen
 
-plot_errors(segments_ist,struct_dtw_segments,struct_frechet_segments,struct_lcss_segments,struct_sidtw_segments,struct_euclidean_segments);
+plot_errors(num_segments,num_trajectories,struct_dtw_segments,struct_frechet_segments,struct_lcss_segments,struct_sidtw_segments,struct_euclidean_segments,struct_dtw,struct_frechet,struct_lcss,struct_sidtw,struct_euclidean)
 
 %% Upload in PostgreSQL 
+
+tic
 if upload2postgresql == true
     
     % Verbindung mit PostgreSQL
@@ -966,17 +974,31 @@ if upload2postgresql == true
         row = struct2table(struct_data{i}, "AsArray", true);
         
         % Format string columns
-        row.trajectory_header_id = string(row.trajectory_header_id{1});
-        row.segment_id = string(row.segment_id{1});
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
+        % if generate_soll
+        %     row.tcp_velocity_soll = string(row.tcp_velocity_soll{1});
+        %     row.joint_state_soll = string(row.joint_state_soll{1});
+        %     row.events_soll = string(row.events_soll{1});
+        % 
+        % end
         
         % Identify and format double array columns to PostgreSQL array format
-        for col = row.Properties.VariableNames
-            if isnumeric(row.(col{1}){1})
+        for col = row.Properties.VariableNames 
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
                 % Convert double array to PostgreSQL array format
-                row.(col{1}) = {sprintf('{%s}', strjoin(string(row.(col{1}){1}), ','))};
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
             end
         end
-        
+
         postgres_data = [postgres_data; row];
     end
 
@@ -984,17 +1006,28 @@ if upload2postgresql == true
         row = struct2table(struct_data_segments{i}, "AsArray", true);
         
         % Format string columns
-        row.trajectory_header_id = string(row.trajectory_header_id{1});
-        row.segment_id = string(row.segment_id{1});
+        row.trajectory_header_id = string(row.trajectory_header_id);
+        row.segment_id = string(row.segment_id);
         
-        % Format double array columns to PostgreSQL array format
-        doubleColumns = row.Properties.VariableNames(3:end);
-        for col = doubleColumns
-            row.(col{1}) = {sprintf('{%s}', strjoin(string(row.(col{1}){1}), ','))};
+        % Identify and format double array columns to PostgreSQL array format
+        for col = row.Properties.VariableNames
+            colData = row.(col{1});
+            
+            % Handle cases where the data is within a cell array
+            if iscell(colData)
+                colData = colData{1};
+            end
+            
+            % Check if the data is a numeric array with more than one element
+            if isnumeric(colData) && ismatrix(colData) && numel(colData) > 1
+                % Convert double array to PostgreSQL array format
+                row.(col{1}) = {sprintf('{%s}', strjoin(string(colData), ','))};
+            end
         end
-        
+      
         postgres_data_segments = [postgres_data_segments; row];
     end
+
 
     for i = 1:length(struct_dtw)
         row = struct2table(struct_dtw{i}, "AsArray", true);
@@ -1363,27 +1396,55 @@ if upload2postgresql == true
         
         postgres_sidtw_segments = [postgres_sidtw_segments; row];
     end
-
-    % Close connection after all operations are done
-    %sqlwrite(conn,"trajectories.trajectories_header", postgres_header);
-    %sqlwrite(conn,"trajectories.trajectories_header_segments", postgres_header_segments);
-    %sqlwrite(conn,"trajectories.trajectories_data", postgres_data);
-    %sqlwrite(conn,"trajectories.trajectories_data", postgres_data_segments);
-    %sqlwrite(conn,"trajectories.trajectories_metrics_euclidean", postgres_euclidean);
-    %sqlwrite(conn,"trajectories.trajectories_metrics_euclidean", postgres_euclidean_segments);
-    %sqlwrite(conn,"trajectories.trajectories_header_segments", postgres_header_segments);
-
     
 end
+toc
+%%  UPLOAD VON DATEN
 
-%% UPLOAD VON DATEN
+    tic
+    sqlwrite(conn,"trajectories.trajectories_header", postgres_header);
+    disp('Header wurde erfolgreich hochgeladen')
 
+    sqlwrite(conn,"trajectories.trajectories_header_segments", postgres_header_segments);
+    disp('Header_segments wurde erfolgreich hochgeladen')
 
-    %sqlwrite(conn, "trajectories.trajectories_metrics_dtw_johnen", postgres_sidtw_segments);
-    %sqlwrite(conn, "trajectories.trajectories_metrics_discrete_frechet", postgres_frechet);
-    %sqlwrite(conn, "trajectories.trajectories_metrics_discrete_frechet", postgres_frechet_segments);
-    %sqlwrite(conn, "trajectories.trajectories_metrics_lcss", postgres_lcss);
-    %sqlwrite(conn, "trajectories.trajectories_metrics_lcss", postgres_lcss_segments);
+    sqlwrite(conn,"trajectories.trajectories_data", postgres_data);
+    disp('data wurde erfolgreich hochgeladen')
 
+    sqlwrite(conn,"trajectories.trajectories_data", postgres_data_segments);
+    disp('data_segments wurde erfolgreich hochgeladen')
+
+    sqlwrite(conn,"trajectories.trajectories_metrics_euclidean", postgres_euclidean);
+    disp('euclidean wurde erfolgreich hochgeladen')
+
+    sqlwrite(conn,"trajectories.trajectories_metrics_euclidean", postgres_euclidean_segments);
+    disp('euclidean_segments wurde erfolgreich hochgeladen')
+    % sqlwrite(conn,"trajectories.trajectories_header_segments", postgres_header_segments);
+
+    sqlwrite(conn, "trajectories.trajectories_metrics_dtw_johnen", postgres_sidtw_segments);
+    disp('sidtw wurde erfolgreich hochgeladen')
+
+    sqlwrite(conn, "trajectories.trajectories_metrics_dtw_johnen", postgres_sidtw);
+    disp('sidtw_segments wurde erfolgreich hochgeladen')
+
+    sqlwrite(conn, "trajectories.trajectories_metrics_discrete_frechet", postgres_frechet);
+    disp('frechet wurde erfolgreich hochgeladen')
+
+    sqlwrite(conn, "trajectories.trajectories_metrics_discrete_frechet", postgres_frechet_segments);
+    disp('frechet_segments wurde erfolgreich hochgeladen')
+
+    sqlwrite(conn, "trajectories.trajectories_metrics_lcss", postgres_lcss);
+    disp('lcss wurde erfolgreich hochgeladen')
+
+    sqlwrite(conn, "trajectories.trajectories_metrics_lcss", postgres_lcss_segments);
+    disp('lcss_segments wurde erfolgreich hochgeladen')
+
+    sqlwrite(conn, "trajectories.trajectories_metrics_dtw", postgres_dtw_segments);
+    disp('dtw wurde erfolgreich hochgeladen')
+
+    sqlwrite(conn, "trajectories.trajectories_metrics_dtw", postgres_dtw);
+    disp('dtw_segments wurde erfolgreich hochgeladen')
+
+    toc
 
 

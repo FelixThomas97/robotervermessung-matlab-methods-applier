@@ -15,6 +15,7 @@ data.nanosec = [];
 
 % Double Array
 data_ = table2array(data);
+% data = data(28878:100717,:);
 
 % Zeitstempel extrahieren
 date_time = data.timestamp(1);
@@ -166,7 +167,7 @@ events_timestamps_vicon = vicon_timestamps(idx_nearest_vicon);
 % a = mean(vicon_dists(idx_nearest_vicon(2):idx_nearest_vicon(2)+min_index_distance))
 
 % Schwellwert für die Annahme, dass der Roboter stillsteht
-threshold = 0.15;  % Zuverlässigster Wert bei 700Hz
+threshold = 0.25;  % Zuverlässigster Wert bei 700Hz
 
 vicon_base_points = zeros(length(idx_nearest_vicon),3);
 % Finden und mitteln aller Vicon-Daten die in einer Ecke liegen 
