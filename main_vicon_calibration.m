@@ -1401,50 +1401,50 @@ end
 toc
 %%  UPLOAD VON DATEN
 
-    tic
-    sqlwrite(conn,"trajectories.trajectories_header", postgres_header);
-    disp('Header wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn,"trajectories.trajectories_header_segments", postgres_header_segments);
-    disp('Header_segments wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn,"trajectories.trajectories_data", postgres_data);
-    disp('data wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn,"trajectories.trajectories_data", postgres_data_segments);
-    disp('data_segments wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn,"trajectories.trajectories_metrics_euclidean", postgres_euclidean);
-    disp('euclidean wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn,"trajectories.trajectories_metrics_euclidean", postgres_euclidean_segments);
-    disp('euclidean_segments wurde erfolgreich hochgeladen')
+    % tic
+    % sqlwrite(conn,"trajectories.trajectories_header", postgres_header);
+    % disp('Header wurde erfolgreich hochgeladen')
+    % 
     % sqlwrite(conn,"trajectories.trajectories_header_segments", postgres_header_segments);
-
-    sqlwrite(conn, "trajectories.trajectories_metrics_dtw_johnen", postgres_sidtw_segments);
-    disp('sidtw wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn, "trajectories.trajectories_metrics_dtw_johnen", postgres_sidtw);
-    disp('sidtw_segments wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn, "trajectories.trajectories_metrics_discrete_frechet", postgres_frechet);
-    disp('frechet wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn, "trajectories.trajectories_metrics_discrete_frechet", postgres_frechet_segments);
-    disp('frechet_segments wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn, "trajectories.trajectories_metrics_lcss", postgres_lcss);
-    disp('lcss wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn, "trajectories.trajectories_metrics_lcss", postgres_lcss_segments);
-    disp('lcss_segments wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn, "trajectories.trajectories_metrics_dtw", postgres_dtw_segments);
-    disp('dtw wurde erfolgreich hochgeladen')
-
-    sqlwrite(conn, "trajectories.trajectories_metrics_dtw", postgres_dtw);
-    disp('dtw_segments wurde erfolgreich hochgeladen')
-
-    toc
+    % disp('Header_segments wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn,"trajectories.trajectories_data", postgres_data);
+    % disp('data wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn,"trajectories.trajectories_data", postgres_data_segments);
+    % disp('data_segments wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn,"trajectories.trajectories_metrics_euclidean", postgres_euclidean);
+    % disp('euclidean wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn,"trajectories.trajectories_metrics_euclidean", postgres_euclidean_segments);
+    % disp('euclidean_segments wurde erfolgreich hochgeladen')
+    % % sqlwrite(conn,"trajectories.trajectories_header_segments", postgres_header_segments);
+    % 
+    % sqlwrite(conn, "trajectories.trajectories_metrics_dtw_johnen", postgres_sidtw_segments);
+    % disp('sidtw wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn, "trajectories.trajectories_metrics_dtw_johnen", postgres_sidtw);
+    % disp('sidtw_segments wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn, "trajectories.trajectories_metrics_discrete_frechet", postgres_frechet);
+    % disp('frechet wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn, "trajectories.trajectories_metrics_discrete_frechet", postgres_frechet_segments);
+    % disp('frechet_segments wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn, "trajectories.trajectories_metrics_lcss", postgres_lcss);
+    % disp('lcss wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn, "trajectories.trajectories_metrics_lcss", postgres_lcss_segments);
+    % disp('lcss_segments wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn, "trajectories.trajectories_metrics_dtw", postgres_dtw_segments);
+    % disp('dtw wurde erfolgreich hochgeladen')
+    % 
+    % sqlwrite(conn, "trajectories.trajectories_metrics_dtw", postgres_dtw);
+    % disp('dtw_segments wurde erfolgreich hochgeladen')
+    % 
+    % toc
 
 
