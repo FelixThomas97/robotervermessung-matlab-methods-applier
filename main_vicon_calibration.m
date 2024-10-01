@@ -11,14 +11,14 @@ tic
 % filename = 'record_20240711_144811_squares_isodiagonalA&B_15s_final.csv'; % 100Hz
 % filename = 'record_20240711_164202_squares_isodiagonalA&B_final (1).csv'; % 300Hz
 
-filename = 'record_20240712_165830_squares_isodiagonalA&B_final.csv';
+% filename = 'record_20240712_165830_squares_isodiagonalA&B_final.csv';
 
 % filename = 'record_20240711_170652_squares_isodiagonalA&B_final (1).csv'; % 350Hz funzt nicht.
 % filename = 'record_20240711_143408_squares_isodiagonalA&B_final.csv'; % Vicon Daten nicht aufgezeichnet. 
 
 % filename = 'record_20240711_172935_all_final.csv';
 
-% filename = 'record_20240715_145920_all_final.csv'; % 700Hz - 93 Segmente
+filename = 'record_20240715_145920_all_final.csv'; % 700Hz - 93 Segmente
 % filename = 'record_20240715_143311_calibration_run_final.csv';
 % filename = 'record_20240715_145153_all_final.csv'; % 700Hz - 483 Segmente
 % filename = 'record_20240715_145153_1.csv';
@@ -26,8 +26,8 @@ filename = 'record_20240712_165830_squares_isodiagonalA&B_final.csv';
 % filename = 'record_20240715_150237_all_final.csv'; % 700Hz - 183 Segmente
 
 
-% filename_calibration = 'record_20240715_143311_calibration_run_final.csv';
-filename_calibration = 'record_20240712_165830_squares_isodiagonalA&B_final.csv';
+filename_calibration = 'record_20240715_143311_calibration_run_final.csv';
+% filename_calibration = 'record_20240712_165830_squares_isodiagonalA&B_final.csv';
 
 data = importfile_vicon_abb_sync(filename);
 
@@ -67,7 +67,7 @@ pflag = false;
 % Upload in DATENBANK
 upload2mongo = false;
 
-upload2postgresql = true;
+upload2postgresql = false;
 
 %%%%%%%% Dateneingabe Header %%%%%%%%%%
 header_data = struct();
@@ -939,6 +939,7 @@ plot_errors(num_segments,num_trajectories,struct_dtw_segments,struct_frechet_seg
 
 %% Upload in PostgreSQL 
 
+upload2postgresql = true; 
 tic
 if upload2postgresql == true
     
