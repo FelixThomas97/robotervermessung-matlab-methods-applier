@@ -1,5 +1,6 @@
 function postgres_euclidean(euclidean_distances, bahn_id_, segment_id_)
 
+
 euclidean_average_distance = mean(euclidean_distances);
 euclidean_max_distance = max(euclidean_distances);
 euclidean_min_distance = min(euclidean_distances);
@@ -22,5 +23,5 @@ table_euclidean_distances = table(bahn_id, segment_id,euclidean_distances);
 
 
 %% In Workspace laden 
-assignin("base","table_euclidean_distances",table_euclidean_distances)
-assignin("base","table_euclidean_info",table_euclidean_info)
+assignin("base","seg_euclidean_distances",table_euclidean_distances)
+assignin("base","seg_euclidean_info",table_euclidean_info)

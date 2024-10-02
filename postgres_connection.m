@@ -1,7 +1,7 @@
 %% Eingabe der ID
 
 bahn_id_ = '172104917';
-segment_id_ = '172104917_4';
+
 
 %% Verbindung mit PostgreSQL
 
@@ -56,68 +56,12 @@ opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
 data_cal_ist= sqlread(conn,tablename_cal,opts_cal);
 data_cal_ist = sortrows(data_cal_ist,'timestamp');
 
-clear data_cal data_cal_info diff_bahn_id min_diff_bahn_id min_idx opts_cal tablename_cal check_bahn_id
-clear query_cal
-
-%% Suche nach der gewünschten ID
-tablename1 = 'robotervermessung.bewegungsdaten.bahn_pose_ist';
-tablename2 = 'robotervermessung.bewegungsdaten.bahn_position_soll';
-
-opts1 = databaseImportOptions(conn,tablename1);
-opts2 = databaseImportOptions(conn,tablename2);
-% vars = opts1.SelectedVariableNames;
-% varOpts = getoptions(opts,vars)
-
-opts1.RowFilter = opts1.RowFilter.bahn_id == bahn_id_ & opts1.RowFilter.segment_id == segment_id_; 
-opts2.RowFilter = opts1.RowFilter;
-
-segment_ist = sqlread(conn,tablename1,opts1);
-segment_ist = sortrows(segment_ist,'timestamp');
-
-segment_soll = sqlread(conn,tablename2,opts2);
-segment_soll = sortrows(segment_soll,'timestamp');
-
-clear opts1 opts2 
-% clear tablename1 tablename2
-
-%%
-% Extrahieren der Positionsdaten
-pos_ist = [segment_ist.x_ist segment_ist.y_ist segment_ist.z_ist];
-pos_soll = [segment_soll.x_soll segment_soll.y_soll segment_soll.z_soll];
-
 % Positionsdaten für Koordinatentransformation
 postgres_calibration_run(data_cal_ist,data_cal_soll)
 
-% Koordinatentransformation
-pos_ist_trafo = pos_ist * trafo_rot + trafo_trans;
-
-%% Plotten der transformierten Positionen 
-
-% % Farben
-% c1 = [0 0.4470 0.7410];
-% c2 = [0.8500 0.3250 0.0980];
-% c3 = [0.9290 0.6940 0.1250];
-% c4 = [0.4940 0.1840 0.5560];
-% c5 = [0.4660 0.6740 0.1880];
-% c6 = [0.3010 0.7450 0.9330];
-% c7 = [0.6350 0.0780 0.1840];
-% 
-% figure 
-% plot3(pos_ist_trafo(:,1),pos_ist_trafo(:,2),pos_ist_trafo(:,3),Color=c1)
-% hold on
-% plot3(pos_soll(:,1),pos_soll(:,2),pos_soll(:,3))
-% plot3(pos_soll(1,1),pos_soll(1,2),pos_soll(1,3),'ok',LineWidth=3)
-% plot3(pos_soll(end,1),pos_soll(end,2),pos_soll(end,3),'or',LineWidth=3)
-% 
-% view(2)
-
-%% Metriken berechnen
-
-
-% Euklidische Abstände berechnen
-[~,euclidean_distances,~] = distance2curve(pos_ist_trafo,pos_soll,'linear');
-% Erstellen der PostgresSQL Datenstrukturen
-postgres_euclidean(euclidean_distances, bahn_id_, segment_id_)
+clear data_cal data_cal_info diff_bahn_id min_diff_bahn_id min_idx opts_cal tablename_cal check_bahn_id
+clear query_cal min_diff_idx min_diff
+clear data_cal_ist data_cal_soll
 
 %% Anzahl an Segmenten bestimmen 
 
@@ -139,13 +83,22 @@ query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_position_soll ' ..
 data_soll = fetch(conn, query);
 data_soll = sortrows(data_soll,'timestamp');
 
-%%
+%% Extraktion und Separation der Segmente der Gesamtaufname
 
-% Extraktion der Inxizes der Segmente 
+% Alle Segment-ID's 
+query = ['SELECT segment_id FROM robotervermessung.bewegungsdaten.bahn_events ' ...
+    'WHERE robotervermessung.bewegungsdaten.bahn_events.bahn_id = ''' bahn_id_ ''''];
+
+segment_ids = fetch(conn,query);
+
+% % % IST-DATEN % % %
+% Extraktion der Indizes der Segmente 
 seg_id = split(data_ist.segment_id, '_');
 seg_id = str2double(seg_id(:,2));
 idx_new_seg_ist = zeros(num_segments,1);
 
+
+% Suche nach den Indizes bei denen sich die Segmentnr. ändert
 k = 0;
 idx = 1;
 for i = 1:1:length(seg_id)
@@ -158,36 +111,114 @@ for i = 1:1:length(seg_id)
     end
 end
 
-a = cell(num_segments+1, 1);
-b = cell(num_segments+1, 1);
+% Speichern der einzelnen Semgente in Tabelle
+segments_ist = array2table([{data_ist.segment_id(1)} data_ist.x_ist(1:idx_new_seg_ist(1)-1) data_ist.y_ist(1:idx_new_seg_ist(1)-1) data_ist.z_ist(1:idx_new_seg_ist(1)-1)], "VariableNames",{'segment_id','x_ist','y_ist','z_ist'});
 
-a{1}= [data_ist.x_ist(1:idx_new_seg_ist(1)-1) data_ist.y_ist(1:idx_new_seg_ist(1)-1) data_ist.z_ist(1:idx_new_seg_ist(1)-1)];
-% % Speichern der einzelnen Semgente in Struktur
 for i = 1:num_segments
+
     if i == length(idx_new_seg_ist)
-        a{i+1} = [data_ist.x_ist(idx_new_seg_ist(i):end) data_ist.y_ist(idx_new_seg_ist(i):end) data_ist.z_ist(idx_new_seg_ist(i):end)];
+        segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.x_ist(idx_new_seg_ist(i):end) data_ist.y_ist(idx_new_seg_ist(i):end) data_ist.z_ist(idx_new_seg_ist(i):end)]);
     else
-        a{i+1}= [data_ist.x_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) data_ist.y_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) data_ist.z_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1)];
+        segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.x_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) data_ist.y_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) data_ist.z_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1)]);
     end
-    
+
 end
 
+% % % SOLL-DATEN % % %
+seg_id = split(data_soll.segment_id, '_');
+seg_id = str2double(seg_id(:,2));
+idx_new_seg_soll = zeros(num_segments,1);
 
-%%
-% a = cell(3,1);
+k = 0;
+idx = 1;
+for i = 1:1:length(seg_id)
+    if seg_id(i) == k
+        idx = idx + 1;
+    else
+        k = k +1;
+        idx_new_seg_soll(k) = idx;
+        idx = idx+1;
+    end
+end
+
+segments_soll = array2table([{data_soll.segment_id(1)} data_soll.x_soll(1:idx_new_seg_soll(1)-1) data_soll.y_soll(1:idx_new_seg_soll(1)-1) data_soll.z_soll(1:idx_new_seg_soll(1)-1)], "VariableNames",{'segment_id','x_soll','y_soll','z_soll'});
+for i = 1:num_segments
+    if i == length(idx_new_seg_soll)
+        segments_soll(i+1,:) = array2table([{segment_ids{i,:}} data_soll.x_soll(idx_new_seg_soll(i):end) data_soll.y_soll(idx_new_seg_soll(i):end) data_soll.z_soll(idx_new_seg_soll(i):end)]);
+    else
+        segments_soll(i+1,:)= array2table([{segment_ids{i,:}} data_soll.x_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) data_soll.y_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) data_soll.z_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1)]);
+    end    
+end
+
+% Koordinatentransformation für alle Segemente
+segments_trafo = table();
+for i = 1:1:num_segments+1
+    postgres_coord_trafo(segments_ist(i,:),trafo_rot, trafo_trans)
+    segments_trafo(i,:) = pos_ist_trafo;
+end
+
+clear idx k seg_id
+
+%% Berechnung der Metriken
+
+%%%%%%%% Euklidean %%%%%%%%
+
+% Berechnung der euklidsichen Abstände für alle Segmente
+table_euclidean_info = table();
+table_euclidean_distances = cell(num_segments+1,1);
+for i = 1:1:num_segments+1
+
+    if istable(segments_trafo)
+        segment_trafo = [segments_trafo.x_ist{i}, segments_trafo.y_ist{i}, segments_trafo.z_ist{i}];
+        segment_soll = [segments_soll.x_soll{i}, segments_soll.y_soll{i}, segments_soll.z_soll{i}];
+    end
+    
+    [~,euclidean_distances,~] = distance2curve(segment_trafo,segment_soll,'linear');
+
+    if i == 1
+        postgres_euclidean(euclidean_distances, bahn_id_, data_ist.segment_id(1))
+        table_euclidean_info = seg_euclidean_info;
+        table_euclidean_distances{1} = seg_euclidean_distances; 
+    else
+        postgres_euclidean(euclidean_distances, bahn_id_, segment_ids{i-1,:})
+        table_euclidean_info(i,:) = seg_euclidean_info;
+        table_euclidean_distances{i} = seg_euclidean_distances; 
+    end
+end
+
+% Berechnung der euklidischen Kennzahlen für die Gesamtmessung
+table_eucl_all_info = table();
+table_eucl_all_info.bahn_id = {bahn_id_};
+table_eucl_all_info.calibration_id = {calibration_id};
+table_eucl_all_info.euclidean_min_distance = min(table_euclidean_info.euclidean_min_distance);
+table_eucl_all_info.euclidean_max_distance = max(table_euclidean_info.euclidean_max_distance);
+table_eucl_all_info.euclidean_average_distance = mean(table_euclidean_info.euclidean_average_distance);
+table_eucl_all_info.euclidean_standard_deviation = mean(table_euclidean_info.euclidean_standard_deviation);
+
+clear euclidean_distances seg_euclidean_info seg_euclidean_distances
+clear pos_ist_trafo segment_ist segment_soll segment_trafo
+
+%% Plotten der transformierten Positionen 
+
+% % Farben
+% c1 = [0 0.4470 0.7410];
+% c2 = [0.8500 0.3250 0.0980];
+% c3 = [0.9290 0.6940 0.1250];
+% c4 = [0.4940 0.1840 0.5560];
+% c5 = [0.4660 0.6740 0.1880];
+% c6 = [0.3010 0.7450 0.9330];
+% c7 = [0.6350 0.0780 0.1840];
 % 
-% b = table_euclidean_distances;
+% figure 
+% plot3(pos_ist_trafo(:,1),pos_ist_trafo(:,2),pos_ist_trafo(:,3),Color=c1)
+% hold on
+% plot3(pos_soll(:,1),pos_soll(:,2),pos_soll(:,3))
+% plot3(pos_soll(1,1),pos_soll(1,2),pos_soll(1,3),'ok',LineWidth=3)
+% plot3(pos_soll(end,1),pos_soll(end,2),pos_soll(end,3),'or',LineWidth=3)
 % 
-% a{3} = b;
-% 
-% bb = a{3};
+% view(2)
 
-
-
-
-
-
-
+% clear c1 c2 c3 c4 c5 c6 c7 
 
 
 
