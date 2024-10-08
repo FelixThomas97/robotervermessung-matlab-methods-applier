@@ -67,6 +67,9 @@ end
     frechet_distances = sqrt(sum((X(frechet_path(:,1),:) - Y(frechet_path(:,2),:)).^2,2));
     
     frechet_av = mean(frechet_distances);
+
+    frechet_X = X(frechet_path(:,1),:);
+    frechet_Y = Y(frechet_path(:,2),:);
     
     %% Plot
     
@@ -128,5 +131,6 @@ end
     assignin('base',"frechet_distances",frechet_distances)
     assignin('base',"frechet_path",frechet_path)
     assignin('base',"frechet_matrix",frechet_matrix)
-
+    assignin('base',"frechet_soll",frechet_X)
+    assignin('base',"frechet_ist",frechet_Y)
 end

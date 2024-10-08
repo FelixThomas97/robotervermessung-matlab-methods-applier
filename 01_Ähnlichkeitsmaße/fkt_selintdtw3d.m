@@ -213,6 +213,7 @@ end
 % maximale und mittlere Distanz 
 maxDistance = max(distances);
 averageDistance = mean(distances);
+minDistance = min(distances);
 %% Visualiesierung
 
 if pflag
@@ -269,4 +270,6 @@ c7 = [0.6350 0.0780 0.1840];
  end
 
 end
+
+% assignin("base",'sidtw_min_distance',minDistance)
 

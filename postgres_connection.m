@@ -2,7 +2,6 @@
 
 bahn_id_ = '172104917';
 
-
 %% Verbindung mit PostgreSQL
 
 datasource = "RobotervermessungMATLAB";
@@ -60,7 +59,7 @@ data_cal_ist = sortrows(data_cal_ist,'timestamp');
 postgres_calibration_run(data_cal_ist,data_cal_soll)
 
 clear data_cal data_cal_info diff_bahn_id min_diff_bahn_id min_idx opts_cal tablename_cal check_bahn_id
-clear query_cal min_diff_idx min_diff
+clear query_cal min_diff_idx
 clear data_cal_ist data_cal_soll
 
 %% Anzahl an Segmenten bestimmen 
@@ -157,15 +156,23 @@ for i = 1:1:num_segments+1
     segments_trafo(i,:) = pos_ist_trafo;
 end
 
-clear idx k seg_id
+clear idx k seg_id query
 
 %% Berechnung der Metriken
 
-%%%%%%%% Euklidean %%%%%%%%
-
-% Berechnung der euklidsichen Abstände für alle Segmente
+% Tabellen initialisieren
 table_euclidean_info = table();
 table_euclidean_distances = cell(num_segments+1,1);
+table_sidtw_info = table();
+table_sidtw_distances = cell(num_segments+1,1);
+table_dtw_info = table();
+table_dtw_distances = cell(num_segments+1,1);
+table_dfd_info = table();
+table_dfd_distances = cell(num_segments+1,1);
+table_lcss_info = table();
+table_lcss_distances = cell(num_segments+1,1);
+
+% Berechnung der Metriken für alle Segmente
 for i = 1:1:num_segments+1
 
     if istable(segments_trafo)
@@ -173,30 +180,119 @@ for i = 1:1:num_segments+1
         segment_soll = [segments_soll.x_soll{i}, segments_soll.y_soll{i}, segments_soll.z_soll{i}];
     end
     
+    % Berechnung euklidischer Abstand
     [~,euclidean_distances,~] = distance2curve(segment_trafo,segment_soll,'linear');
+    % Berechnung SIDTW
+    [sidtw_distances, ~, ~, ~, sidtw_soll, sidtw_ist, ~, ~, ~] = fkt_selintdtw3d(segment_soll,segment_trafo,false);
+    % Berechnung DTW
+    [dtw_distances, ~, ~, ~, dtw_soll, dtw_ist, ~, ~, ~, ~] = fkt_dtw3d(segment_soll,segment_trafo,false);
+    % Berechnung diskrete Frechet
+    fkt_discreteFrechet(segment_soll,segment_trafo,false)
+    % Berechnung LCSS
+    [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(segment_soll,segment_trafo,false);
 
     if i == 1
+        % Euklidischer Abstand
         postgres_euclidean(euclidean_distances, bahn_id_, data_ist.segment_id(1))
         table_euclidean_info = seg_euclidean_info;
-        table_euclidean_distances{1} = seg_euclidean_distances; 
+        table_euclidean_distances{1} = seg_euclidean_distances;
+        % SIDTW
+        postgres_metrics('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, data_ist.segment_id(1))
+        table_sidtw_info = seg_sidtw_info;
+        table_sidtw_distances{1} = seg_sidtw_distances;
+        % DTW
+        postgres_metrics('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, data_ist.segment_id(1))
+        table_dtw_info = seg_dtw_info;
+        table_dtw_distances{1} = seg_dtw_distances;
+        % DFD
+        postgres_metrics('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, data_ist.segment_id(1))
+        table_dfd_info = seg_dfd_info;
+        table_dfd_distances{1} = seg_dfd_distances;       
+        % LCSS
+        postgres_metrics('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, data_ist.segment_id(1))
+        table_lcss_info = seg_lcss_info;
+        table_lcss_distances{1} = seg_lcss_distances;
+
     else
+        % Euklidischer Abstand
         postgres_euclidean(euclidean_distances, bahn_id_, segment_ids{i-1,:})
         table_euclidean_info(i,:) = seg_euclidean_info;
-        table_euclidean_distances{i} = seg_euclidean_distances; 
+        table_euclidean_distances{i} = seg_euclidean_distances;
+        % SIDTW
+        postgres_metrics('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i-1,:})
+        table_sidtw_info(i,:) = seg_sidtw_info;
+        table_sidtw_distances{i} = seg_sidtw_distances;
+        % DTW
+        postgres_metrics('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i-1,:})
+        table_dtw_info(i,:) = seg_dtw_info;
+        table_dtw_distances{i} = seg_dtw_distances;
+        % DFD
+        postgres_metrics('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i-1,:})
+        table_dfd_info(i,:) = seg_dfd_info;
+        table_dfd_distances{i} = seg_dfd_distances;
+        % LCSS
+        postgres_metrics('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i-1,:})
+        table_lcss_info(i,:) = seg_lcss_info;
+        table_lcss_distances{i} = seg_lcss_distances;
+
     end
 end
 
-% Berechnung der euklidischen Kennzahlen für die Gesamtmessung
-table_eucl_all_info = table();
-table_eucl_all_info.bahn_id = {bahn_id_};
-table_eucl_all_info.calibration_id = {calibration_id};
-table_eucl_all_info.euclidean_min_distance = min(table_euclidean_info.euclidean_min_distance);
-table_eucl_all_info.euclidean_max_distance = max(table_euclidean_info.euclidean_max_distance);
-table_eucl_all_info.euclidean_average_distance = mean(table_euclidean_info.euclidean_average_distance);
-table_eucl_all_info.euclidean_standard_deviation = mean(table_euclidean_info.euclidean_standard_deviation);
+% Berechnung der Kennzahlen für die Gesamtmessung
+table_all_info = table();
+table_all_info.bahn_id = {bahn_id_};
+table_all_info.calibration_id = {calibration_id};
+table_all_info.min_distance = min(table_euclidean_info.euclidean_min_distance);
+table_all_info.max_distance = max(table_euclidean_info.euclidean_max_distance);
+table_all_info.average_distance = mean(table_euclidean_info.euclidean_average_distance);
+table_all_info.standard_deviation = mean(table_euclidean_info.euclidean_standard_deviation);
+table_all_info.metrik = "euclidean";
 
+sidtw = table();
+sidtw.bahn_id = {bahn_id_};  
+sidtw.calibration_id = {calibration_id};  
+sidtw.min_distance = min(table_sidtw_info.sidtw_min_distance); 
+sidtw.max_distance = max(table_sidtw_info.sidtw_max_distance);
+sidtw.average_distance = mean(table_sidtw_info.sidtw_average_distance);
+sidtw.standard_deviation = mean(table_sidtw_info.sidtw_standard_deviation);
+sidtw.metrik = "sidtw";
+
+dtw = table();
+dtw.bahn_id = {bahn_id_};  
+dtw.calibration_id = {calibration_id};  
+dtw.min_distance = min(table_dtw_info.dtw_min_distance); 
+dtw.max_distance = max(table_dtw_info.dtw_max_distance);
+dtw.average_distance = mean(table_dtw_info.dtw_average_distance);
+dtw.standard_deviation = mean(table_dtw_info.dtw_standard_deviation);
+dtw.metrik = "dtw";
+
+dfd = table();
+dfd.bahn_id = {bahn_id_};  
+dfd.calibration_id = {calibration_id};  
+dfd.min_distance = min(table_dfd_info.dfd_min_distance); 
+dfd.max_distance = max(table_dfd_info.dfd_max_distance);
+dfd.average_distance = mean(table_dfd_info.dfd_average_distance);
+dfd.standard_deviation = mean(table_dfd_info.dfd_standard_deviation);
+dfd.metrik = "dfd";
+
+lcss = table();
+lcss.bahn_id = {bahn_id_};  
+lcss.calibration_id = {calibration_id};  
+lcss.min_distance = min(table_lcss_info.lcss_min_distance); 
+lcss.max_distance = max(table_lcss_info.lcss_max_distance);
+lcss.average_distance = mean(table_lcss_info.lcss_average_distance);
+lcss.standard_deviation = mean(table_lcss_info.lcss_standard_deviation);
+lcss.metrik = "lcss";
+
+table_all_info = [table_all_info; sidtw; dtw; dfd; lcss];
+
+clear sidtw sidtw_distances sidtw_ist sidtw_soll seg_sidtw_info seg_sidtw_distances
+clear dtw dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
+clear dfd frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
+clear lcss lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
 clear euclidean_distances seg_euclidean_info seg_euclidean_distances
-clear pos_ist_trafo segment_ist segment_soll segment_trafo
+clear pos_ist_trafo segment_ist segment_soll segment_trafo i min_diff num_segments
+
 
 %% Plotten der transformierten Positionen 
 
@@ -220,5 +316,51 @@ clear pos_ist_trafo segment_ist segment_soll segment_trafo
 
 % clear c1 c2 c3 c4 c5 c6 c7 
 
+%% 
+
+% Berechnung aller Metriken für die gesamte Messaufnahme
+evaluate_all = true;
+
+if evaluate_all
+
+    % Zur Sicherheit, damit nicht alle Daten ausgewertet werden !!!!!
+    data_ist = data_ist(1:500,:);
+    data_soll = data_soll(1:500,:);
+
+    data_all_ist = table2array(data_ist(:,5:7));
+    data_all_soll = table2array(data_soll(:,5:7));
+
+    % Koordinatentrafo für alle Daten 
+    postgres_coord_trafo(data_all_ist,trafo_rot, trafo_trans)
+    
+    % Euklidischer Abstand 
+    [~,euclidean_distances,~] = distance2curve(data_ist_trafo,data_all_soll,'linear');
+    % % SIDTW
+    [sidtw_distances, ~, ~, ~, sidtw_soll, sidtw_ist, ~, ~, ~] = fkt_selintdtw3d(data_all_soll,data_ist_trafo,false);
+    % DTW
+    [dtw_distances, ~, ~, ~, dtw_soll, dtw_ist, ~, ~, ~, ~] = fkt_dtw3d(data_all_soll,data_ist_trafo,false);
+    % Frechet 
+    fkt_discreteFrechet(data_all_soll,data_ist_trafo,false);
+    % LCSS
+    [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(data_all_soll,data_ist_trafo,false);
+
+    postgres_euclidean(euclidean_distances, bahn_id_)
+    postgres_metrics('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_)
+    postgres_metrics('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_)
+    postgres_metrics('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_)
+    postgres_metrics('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_)
+
+    % 1. Anpassung der Spaltennamen für jede Tabelle
+    seg_euclidean_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+    seg_sidtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+    seg_dtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+    seg_dfd_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+    seg_lcss_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+    
+    table_all_info_2 = [seg_euclidean_info(1,:); seg_sidtw_info(1,:); seg_dtw_info(1,:); seg_dfd_info(1,:); seg_lcss_info(1,:)];
+
+    table_all_info_2.metrik = {'euclidean'; 'sidtw'; 'dtw'; 'dfd'; 'lcss'};
+
+end
 
 
