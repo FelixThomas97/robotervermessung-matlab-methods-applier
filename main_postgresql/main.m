@@ -321,7 +321,7 @@ clear pos_ist_trafo segment_ist segment_soll segment_trafo i min_diff num_segmen
 %% 
 
 % Berechnung aller Metriken für die gesamte Messaufnahme
-evaluate_all = true;
+evaluate_all = false;
 
 if evaluate_all
 
@@ -380,4 +380,142 @@ if evaluate_all
 
 end
 
+%% Plotten
+
+% Farben
+c1 = [0 0.4470 0.7410];
+c2 = [0.8500 0.3250 0.0980];
+c3 = [0.9290 0.6940 0.1250];
+c4 = [0.4940 0.1840 0.5560];
+c5 = [0.4660 0.6740 0.1880];
+c6 = [0.3010 0.7450 0.9330];
+c7 = [0.6350 0.0780 0.1840];
+
+ist = table2array(data_ist(:,5:7));
+soll = table2array(data_soll(:,5:7));
+
+% Koordinatentrafo für alle Daten 
+transformation(ist,trafo_rot, trafo_trans)
+ist = data_ist_trafo; clear data_ist_trafo
+
+% Plot der Gesamten Bahn
+f0 = figure('Color','white','Name','Soll und Istbahn (gesamte Messung)');
+f0.Position(3:4) = [1520 840];
+hold on 
+plot3(soll(:,1),soll(:,2),soll(:,3),Color=c1,LineWidth=1.5)
+plot3(ist(:,1),ist(:,2),ist(:,3),Color=c2,LineWidth=1.5)
+xlabel('x','FontWeight','bold');
+ylabel('y','FontWeight','bold');
+zlabel('z','FontWeight','bold','Rotation',0);
+legend('Sollbahn (ABB)','Istbahn (VICON)')
+grid on 
+view(3)
+
+% Plotten der Segmente x1 bis x2
+x1 = 0; 
+x2 = 20; 
+
+
+f1 = figure('Color','white','Name','Soll- und Istbahnen (Bahnsegmente)');
+f1.Position(3:4) = [1520 840];
+hold on
+if x2-x1 == 0
+    plot3(segments_trafo.x_ist{x1+1,1},segments_trafo.y_ist{x1+1,1},segments_trafo.z_ist{x1+1,1},Color=c1,LineWidth=1.5)
+    plot3(segments_soll.x_soll{x1+1,1},segments_soll.y_soll{x1+1,1},segments_soll.z_soll{x1+1,1},Color=c2,LineWidth=1.5)
+else
+    for i = x1:1:x2-x1
+        plot3(segments_trafo.x_ist{i+1,1},segments_trafo.y_ist{i+1,1},segments_trafo.z_ist{i+1,1},Color=c1,LineWidth=1.5)
+        plot3(segments_soll.x_soll{i+1,1},segments_soll.y_soll{i+1,1},segments_soll.z_soll{i+1,1},Color=c2,LineWidth=1.5)
+    end
+end
+title("Bahnabschnitte " + num2str(x1) + " bis " + num2str(x2))
+xlabel('x','FontWeight','bold'); ylabel('y','FontWeight','bold'); zlabel('z','FontWeight','bold','Rotation',0);
+legend('Sollbahn (ABB)','Istbahn (VICON)')
+grid on 
+view(3)
+
+f2 = figure('Color','white','Name','Mittlere Abweichungen (Bahnsegmente)');
+f2.Position(3:4) = [1520 840];
+subplot(2,2,1)
+title('Mittlere Abweichungen zwischen Soll- und Istbahn')
+hold on 
+plot(linspace(x1,x2,x2-x1+1),table_dtw_info.dtw_average_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c1)
+plot(linspace(x1,x2,x2-x1+1),table_dfd_info.dfd_average_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c2)
+plot(linspace(x1,x2,x2-x1+1),table_lcss_info.lcss_average_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c3)
+plot(linspace(x1,x2,x2-x1+1),table_sidtw_info.sidtw_average_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c4)
+plot(linspace(x1,x2,x2-x1+1),table_euclidean_info.euclidean_average_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c5)
+% Plot der Werte der gesamten Bahn
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.average_distance(3,:),x2-x1+1,1),LineWidth=1.2,Color=c1)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.average_distance(4,:),x2-x1+1,1),LineWidth=1.2,Color=c2)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.average_distance(5,:),x2-x1+1,1),LineWidth=1.2,Color=c3)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.average_distance(2,:),x2-x1+1,1),LineWidth=1.2,Color=c4)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.average_distance(1,:),x2-x1+1,1),LineWidth=1.2,Color=c5)
+xlabel('Bahnsegmente');
+ylabel('Abweichung in mm');
+legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
+grid on
+axis padded
+
+subplot(2,2,2)
+title('Maximale Abweichungen zwischen Soll- und Istbahn')
+hold on 
+plot(linspace(x1,x2,x2-x1+1),table_dtw_info.dtw_max_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c1)
+plot(linspace(x1,x2,x2-x1+1),table_dfd_info.dfd_max_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c2)
+plot(linspace(x1,x2,x2-x1+1),table_lcss_info.lcss_max_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c3)
+plot(linspace(x1,x2,x2-x1+1),table_sidtw_info.sidtw_max_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c4)
+plot(linspace(x1,x2,x2-x1+1),table_euclidean_info.euclidean_max_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c5)
+% Plot der Werte der gesamten Bahn
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.max_distance(3,:),x2-x1+1,1),LineWidth=1.2,Color=c1)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.max_distance(4,:),x2-x1+1,1),LineWidth=1.2,Color=c2)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.max_distance(5,:),x2-x1+1,1),LineWidth=1.2,Color=c3)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.max_distance(2,:),x2-x1+1,1),LineWidth=1.2,Color=c4)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.max_distance(1,:),x2-x1+1,1),LineWidth=1.2,Color=c5)
+xlabel('Bahnsegmente');
+ylabel('Abweichung in mm');
+legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
+grid on
+axis padded
+
+subplot(2,2,3)
+title('Minimale Abweichungen zwischen Soll- und Istbahn')
+hold on 
+plot(linspace(x1,x2,x2-x1+1),table_dtw_info.dtw_min_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c1)
+plot(linspace(x1,x2,x2-x1+1),table_dfd_info.dfd_min_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c2)
+plot(linspace(x1,x2,x2-x1+1),table_lcss_info.lcss_min_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c3)
+plot(linspace(x1,x2,x2-x1+1),table_sidtw_info.sidtw_min_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c4)
+plot(linspace(x1,x2,x2-x1+1),table_euclidean_info.euclidean_min_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c5)
+% Plot der Werte der gesamten Bahn
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.min_distance(3,:),x2-x1+1,1),LineWidth=1.2,Color=c1)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.min_distance(4,:),x2-x1+1,1),LineWidth=1.2,Color=c2)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.min_distance(5,:),x2-x1+1,1),LineWidth=1.2,Color=c3)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.min_distance(2,:),x2-x1+1,1),LineWidth=1.2,Color=c4)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.min_distance(1,:),x2-x1+1,1),LineWidth=1.2,Color=c5)
+xlabel('Bahnsegmente');
+ylabel('Abweichung in mm');
+legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
+grid on
+axis padded
+
+subplot(2,2,4)
+title('Standardabweichungen zwischen Soll- und Istbahn')
+hold on 
+plot(linspace(x1,x2,x2-x1+1),table_dtw_info.dtw_standard_deviation(x1+1:x2+1,:),LineWidth=2.5,Color=c1)
+plot(linspace(x1,x2,x2-x1+1),table_dfd_info.dfd_standard_deviation(x1+1:x2+1,:),LineWidth=2.5,Color=c2)
+plot(linspace(x1,x2,x2-x1+1),table_lcss_info.lcss_standard_deviation(x1+1:x2+1,:),LineWidth=2.5,Color=c3)
+plot(linspace(x1,x2,x2-x1+1),table_sidtw_info.sidtw_standard_deviation(x1+1:x2+1,:),LineWidth=2.5,Color=c4)
+plot(linspace(x1,x2,x2-x1+1),table_euclidean_info.euclidean_standard_deviation(x1+1:x2+1,:),LineWidth=2.5,Color=c5)
+% Plot der Werte der gesamten Bahn
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.standard_deviation(3,:),x2-x1+1,1),LineWidth=1.2,Color=c1)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.standard_deviation(4,:),x2-x1+1,1),LineWidth=1.2,Color=c2)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.standard_deviation(5,:),x2-x1+1,1),LineWidth=1.2,Color=c3)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.standard_deviation(2,:),x2-x1+1,1),LineWidth=1.2,Color=c4)
+plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.standard_deviation(1,:),x2-x1+1,1),LineWidth=1.2,Color=c5)
+xlabel('Bahnsegmente');
+ylabel('Abweichung in mm');
+legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
+grid on
+axis padded
+
+
+clear c1 c2 c3 c4 c5 c6 c7 x1 x2 n i f0 f1 f2
 
