@@ -233,7 +233,7 @@ velocity_max_vicon = max(vicon_velocity(:,4));
 velocity_max_abb = max(abb_velocity);
 
 % Berechnung der Stützpunkte 
-new_base_points(vicon_positions, events_positions,idx_abb_events,data_timestamps,vicon_timestamps)
+get_base_points(vicon_positions, events_positions,idx_abb_events,data_timestamps,vicon_timestamps)
 
 %% Plotssssssssssssss %%
 
