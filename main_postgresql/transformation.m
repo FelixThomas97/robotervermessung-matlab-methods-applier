@@ -1,4 +1,4 @@
-function postgres_coord_trafo(data_ist,trafo_rot, trafo_trans)
+function transformation(data_ist,trafo_rot, trafo_trans)
 
 if istable(data_ist)
     pos_ist = table2array(data_ist(1,2:4));

@@ -200,9 +200,15 @@ end
 % Indizes der inderpolierten Bahnpunkte
 ix = MappingIndexes(:,1);       
 iy = MappingIndexes(:,2);
-% Interpolierte Bahnen
-dtw_X = result(:,[1 2 3]);
-dtw_Y = result(:, [4 5 6]);
+
+if size(result,2) == 6 
+    % Interpolierte Bahnen
+    dtw_X = result(:,[1 2 3]);
+    dtw_Y = result(:, [4 5 6]);
+elseif size(result,2) == 2
+    dtw_X = result(:,1);
+    dtw_Y = result(:,2);
+end
 
 % Distanzen zwischen den interpolierten Bahnen
 distances = zeros(length(dtw_X),1);
