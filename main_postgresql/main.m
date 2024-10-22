@@ -1,6 +1,7 @@
 %% Eingabe der ID
 
-bahn_id_ = '172104917';
+% bahn_id_ = '172104917';
+bahn_id_ = '171991223';
 
 % Berechnung der Metriken für die Geschwindikeitsabweichungen
 evaluate_velocity = false;
@@ -9,12 +10,13 @@ evaluate_velocity = false;
 evaluate_orientation = true;
 
 % Berechnung der Metriken für bestimmte Bahnabschnitte
-evaluate_segmentwise = false; 
-segment_first = 5;
-segment_last = 7;
-
+evaluate_segmentwise = true;
+if evaluate_segmentwise
+    segment_first = 5;
+    segment_last = 7;
+end
 % Berechnung der Metriken für die gesamte Messaufnahme
-evaluate_all = false;
+evaluate_all = true;
 
 % Plotten der Daten 
 plots = false;
@@ -36,6 +38,8 @@ clear datasource username password
 
 %% Suche nach zugehörigem "Calibration Run"
 
+tic;
+
 query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE robotervermessung.bewegungsdaten.bahn_info.calibration_run = true';
 
 % Abfrage ausführen und Ergebnisse abrufen
@@ -45,38 +49,52 @@ data_cal_info = fetch(conn, query_cal);
 check_bahn_id = str2double(data_cal_info.bahn_id);
 diff_bahn_id = check_bahn_id - str2double(bahn_id_);
 
-[min_diff,min_diff_idx] = min(abs(diff_bahn_id));
+[~,min_diff_idx] = min(abs(diff_bahn_id));
 
 % Wenn eine Kalibierungsdatei vorliegt wird diese für die
 % Koordinatentransformation genutzt, ansonsten die wird die gewählte Datei
 % selbst verwendet. 
 if diff_bahn_id(min_diff_idx) < 0
-    calibration_id = data_cal_info{min_diff_idx,'bahn_id'};
-    disp('Kalibrierungs-Datei vorhanden! ID der Messaufnahme: ' + calibration_id)
+    calibration_id = char(data_cal_info{min_diff_idx,'bahn_id'});
+    disp('Kalibrierungs-Datei vorhanden! ID der Messaufnahme: ' + string(calibration_id))
 else
     calibration_id = bahn_id_;
     disp('Zu dem ausgewählten Datensatz liegt keine Kalibirierungsdatei vor!')
 end
 
 % Extrahieren der Calibrierungs-Daten
-tablename_cal = 'robotervermessung.bewegungsdaten.bahn_events';
-opts_cal = databaseImportOptions(conn,tablename_cal);
-opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
-data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
-data_cal_soll = sortrows(data_cal_soll,'timestamp');
-
 tablename_cal = 'robotervermessung.bewegungsdaten.bahn_pose_ist';
 opts_cal = databaseImportOptions(conn,tablename_cal);
 opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
 data_cal_ist= sqlread(conn,tablename_cal,opts_cal);
 data_cal_ist = sortrows(data_cal_ist,'timestamp');
 
-% Positionsdaten für Koordinatentransformation
-calibration(data_cal_ist,data_cal_soll)
+if evaluate_orientation == true
+    % Wenn Orientierung wird andere Collection benötigt
+    tablename_cal = 'robotervermessung.bewegungsdaten.bahn_orientation_soll';
+    opts_cal = databaseImportOptions(conn,tablename_cal);
+    opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
+    data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
+    data_cal_soll = sortrows(data_cal_soll,'timestamp');
+
+    % Transformation der Quaternionen/Eulerwinkel
+    euler_transformation(data_cal_ist,data_cal_soll)
+else
+    tablename_cal = 'robotervermessung.bewegungsdaten.bahn_events';
+    opts_cal = databaseImportOptions(conn,tablename_cal);
+    opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
+    data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
+    data_cal_soll = sortrows(data_cal_soll,'timestamp');
+
+    % Positionsdaten für Koordinatentransformation
+    calibration(data_cal_ist,data_cal_soll)
+end
+
 
 clear data_cal data_cal_info diff_bahn_id min_diff_bahn_id min_idx opts_cal tablename_cal check_bahn_id
 clear query_cal min_diff_idx
 clear data_cal_ist data_cal_soll
+
 
 %% Anzahl an Segmenten bestimmen 
 
@@ -100,7 +118,18 @@ if evaluate_velocity == false && evaluate_orientation == true
     data_soll = fetch(conn, query);
     data_soll = sortrows(data_soll,'timestamp');
 
-elseif evaluate_velocity == true 
+    % Transformation der Quarternionen zu Euler-Winkeln
+    q_soll = table2array(data_soll(:,5:8));
+    q_soll = [q_soll(:,4), q_soll(:,3), q_soll(:,2), q_soll(:,1)];
+    euler_soll = quat2eul(q_soll,"ZYX");
+    euler_soll = rad2deg(euler_soll);
+    
+    q_ist = table2array(data_ist(:,8:11));
+    q_ist = [q_ist(:,4), q_ist(:,3), q_ist(:,2), q_ist(:,1)];
+    euler_ist = quat2eul(q_ist,"ZYX");
+    euler_ist = rad2deg(euler_ist);
+
+elseif evaluate_velocity == true && evaluate_orientation == false 
 
     % Auslesen der gesamten Ist-Daten
     query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_twist_ist ' ...
@@ -129,29 +158,9 @@ else
     data_soll = sortrows(data_soll,'timestamp');
 
 end
-%%
-a = data_soll(:,5:8);
-aa = table2array(a);
-aaa = quat2eul(aa,"ZYX");
 
-figure;
-hold on 
-plot(rad2deg(aaa(:,1)))
-plot(rad2deg(aaa(:,2)))
-plot(rad2deg(aaa(:,3)))
-hold off
+clear q_ist q_soll
 
-[pitch, roll, yaw] = quat2angle(aa);
-pitch = rad2deg(pitch);
-roll = rad2deg(roll);
-yaw  = rad2deg(yaw);
-
-figure
-hold on 
-plot(pitch)
-plot(roll)
-plot(yaw)
-hold off
 
 %% Extraktion und Separation der Segmente der Gesamtaufname
 
@@ -197,7 +206,7 @@ for i = 1:1:length(seg_id)
     end
 end
 
-if evaluate_velocity == false 
+if evaluate_velocity == false && evaluate_orientation == false 
 
     % Speichern der einzelnen Semgente in Tabelle
     segments_ist = array2table([{data_ist.segment_id(1)} data_ist.x_ist(1:idx_new_seg_ist(1)-1) data_ist.y_ist(1:idx_new_seg_ist(1)-1) data_ist.z_ist(1:idx_new_seg_ist(1)-1)], "VariableNames",{'segment_id','x_ist','y_ist','z_ist'});
@@ -224,7 +233,7 @@ if evaluate_velocity == false
     % Koordinatentransformation für alle Segemente
     segments_trafo = table();
     for i = 1:1:num_segments+1
-        transformation(segments_ist(i,:),trafo_rot, trafo_trans)
+        coord_transformation(segments_ist(i,:),trafo_rot, trafo_trans)
         segments_trafo(i,:) = pos_ist_trafo;
     end
 
@@ -253,10 +262,43 @@ elseif evaluate_velocity == true
             segments_soll(i+1,:)= array2table([{segment_ids{i,:}} data_soll.tcp_speed_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1)]);
         end    
     end
+    
+elseif evaluate_orientation == true
+
+    disp('Es wird die Orientierung ausgewertet!')
+
+    % Speichern der einzelnen Semgente in Tabelle
+    segments_ist = array2table([{data_ist.segment_id(1)} euler_ist(1:idx_new_seg_ist(1)-1,1) euler_ist(1:idx_new_seg_ist(1)-1,2) euler_ist(1:idx_new_seg_ist(1)-1,3)], "VariableNames",{'segment_id','roll_ist','pitch_ist','yaw_ist'});
+    
+    for i = 1:num_segments
+    
+        if i == length(idx_new_seg_ist)
+            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} euler_ist(idx_new_seg_ist(i):end,1) euler_ist(idx_new_seg_ist(i):end,2) euler_ist(idx_new_seg_ist(i):end,3)]);
+        else
+            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,1) euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,2) euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,3)]);
+        end
+    
+    end
+    
+    segments_soll = array2table([{data_soll.segment_id(1)} euler_soll(1:idx_new_seg_soll(1)-1,1) euler_soll(1:idx_new_seg_soll(1)-1,2) euler_soll(1:idx_new_seg_soll(1)-1,3)], "VariableNames",{'segment_id','roll_soll','pitch_soll','yaw_soll'});
+    for i = 1:num_segments
+        if i == length(idx_new_seg_soll)
+            segments_soll(i+1,:) = array2table([{segment_ids{i,:}} euler_soll(idx_new_seg_soll(i):end,1) euler_soll(idx_new_seg_soll(i):end,2) euler_soll(idx_new_seg_soll(i):end,3)]);
+        else
+            segments_soll(i+1,:)= array2table([{segment_ids{i,:}} euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,1) euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,2) euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,3)]);
+        end    
+    end
+    
+    % % Koordinatentransformation für alle Segemente
+    segments_trafo = table();
+    for i = 1:1:num_segments+1
+        euler_transformation(segments_ist(i,:),segments_soll(i,:), trafo_euler)
+        segments_trafo(i,:) = seg_trafo;
+    end
 
 end
 
-clear idx k seg_id query
+clear idx k seg_id query seg_trafo
 
 
 
@@ -269,6 +311,7 @@ table_dtw_info = table();
 table_dtw_distances = cell(num_segments+1,1);
 table_dfd_info = table();
 table_dfd_distances = cell(num_segments+1,1);
+% Wenn Geschwindigkeit ausgewertet werden soll sind die 1D-Metriken nicht durchfürbar
 if size(segments_soll,2) > 2
     table_euclidean_info = table();
     table_euclidean_distances = cell(num_segments+1,1);
@@ -279,13 +322,16 @@ end
 % Berechnung der Metriken für alle Segmente
 for i = 1:1:num_segments+1
 
-
-    if evaluate_velocity == false
+    if evaluate_velocity == false && evaluate_orientation == false 
         segment_trafo = [segments_trafo.x_ist{i}, segments_trafo.y_ist{i}, segments_trafo.z_ist{i}];
         segment_soll = [segments_soll.x_soll{i}, segments_soll.y_soll{i}, segments_soll.z_soll{i}];
-    else
+    elseif evaluate_velocity == true && evaluate_orientation == false 
         segment_trafo = segments_ist.tcp_speed_ist{i};
         segment_soll = segments_soll.tcp_speed_soll{i};
+    elseif evaluate_velocity == false && evaluate_orientation == true 
+        segment_trafo = [segments_trafo.roll_ist{i}, segments_trafo.pitch_ist{i},  segments_trafo.yaw_ist{i}];
+        segment_soll = [segments_soll.roll_soll{i}, segments_soll.pitch_soll{i}, segments_soll.yaw_soll{i}];
+
     end
 
     if size(segment_soll,2) > 1
@@ -411,7 +457,7 @@ clear sidtw sidtw_distances sidtw_ist sidtw_soll seg_sidtw_info seg_sidtw_distan
 clear dtw dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
 clear dfd frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
 clear lcss lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
-clear euclidean_distances seg_euclidean_info seg_euclidean_distances
+clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
 clear pos_ist_trafo segment_ist segment_soll segment_trafo i min_diff 
 
 
@@ -441,19 +487,28 @@ clear pos_ist_trafo segment_ist segment_soll segment_trafo i min_diff
 
 if evaluate_all == true && evaluate_velocity == false 
 
-    % !!!! Zur Sicherheit, damit nicht alle Daten ausgewertet werden !!!!!
-    data_all_ist = data_ist(1:600,:);
-    data_all_soll = data_soll(1:500,:);
 
-    data_all_ist = table2array(data_all_ist(:,5:7));
-    data_all_soll = table2array(data_all_soll(:,5:7));
+    if evaluate_orientation == true
+        euler_transformation(euler_ist,euler_soll, trafo_euler)
+        % !!!! Zur Sicherheit, damit nicht alle Daten ausgewertet werden !!!!!
+        data_all_ist = euler_trans(1:1000,:);
+        data_ist_trafo = data_all_ist;
+        data_all_soll = euler_soll(1:1000,:);
+    else 
+        % !!!! Zur Sicherheit, damit nicht alle Daten ausgewertet werden !!!!!
+        data_all_ist = data_ist(1:600,:);
+        data_all_soll = data_soll(1:500,:);
 
-    % Koordinatentrafo für alle Daten 
-    transformation(data_all_ist,trafo_rot, trafo_trans)
+        data_all_ist = table2array(data_all_ist(:,5:7));
+        data_all_soll = table2array(data_all_soll(:,5:7));
+    
+        % Koordinatentrafo für alle Daten 
+        coord_transformation(data_all_ist,trafo_rot, trafo_trans)
+    end
     
     % Euklidischer Abstand 
     [euclidean_ist,euclidean_distances,~] = distance2curve(data_ist_trafo,data_all_soll,'linear');
-    % % SIDTW
+    % SIDTW
     [sidtw_distances, ~, ~, ~, sidtw_soll, sidtw_ist, ~, ~, ~] = fkt_selintdtw3d(data_all_soll,data_ist_trafo,false);
     % DTW
     [dtw_distances, ~, ~, ~, dtw_soll, dtw_ist, ~, ~, ~, ~] = fkt_dtw3d(data_all_soll,data_ist_trafo,false);
@@ -492,14 +547,24 @@ if evaluate_all == true && evaluate_velocity == false
     clear frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
     clear lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
     clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
+    clear data_ist_trafo
 
 end
 
 %% Auswertung bestimmter Bahnabschnitte
+ 
 
 if evaluate_segmentwise == true && evaluate_velocity == false
 
     n = abs(segment_first - segment_last) + 1;
+
+    if evaluate_orientation == true
+        euler_transformation(euler_ist,euler_soll, trafo_euler)
+        data_ist_ = data_ist;
+        data_soll_ = data_soll; 
+        data_ist = euler_trans;
+        data_soll = euler_soll;
+    end
 
     if segment_first == 0 && segment_last == height(segments_ist) - 1
         trajectory_ist = data_ist(1:end,:);
@@ -520,12 +585,18 @@ if evaluate_segmentwise == true && evaluate_velocity == false
     else
         error('Die ausgewählten Bahnabschnitte sind in den Daten nicht vorhanden!')
     end
-
-    trajectory_ist = table2array(trajectory_ist(:,5:7));
-    trajectory_soll = table2array(trajectory_soll(:,5:7));
-
-    % Koordinatentransformation
-    transformation(trajectory_ist,trafo_rot, trafo_trans)
+    
+    if evaluate_orientation == true
+        data_ist_trafo = trajectory_ist;
+        data_ist = data_ist_; data_soll = data_soll_;
+        clear data_ist_ data_soll_ 
+    else
+        trajectory_ist = table2array(trajectory_ist(:,5:7));
+        trajectory_soll = table2array(trajectory_soll(:,5:7));
+    
+        % Koordinatentransformation
+        coord_transformation(trajectory_ist,trafo_rot, trafo_trans)
+    end
 
     % Euklidischer Abstand 
     [euclidean_ist,euclidean_distances,~] = distance2curve(data_ist_trafo,trajectory_soll,'linear');
@@ -560,6 +631,7 @@ if evaluate_segmentwise == true && evaluate_velocity == false
     clear frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
     clear lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
     clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
+    clear data_ist_trafo
 
 end
 
@@ -582,8 +654,9 @@ ist = table2array(data_ist(:,5:7));
 soll = table2array(data_soll(:,5:7));
 
 % Koordinatentrafo für alle Daten 
-transformation(ist,trafo_rot, trafo_trans)
-ist = data_ist_trafo; clear data_ist_trafo
+coord_transformation(ist,trafo_rot, trafo_trans)
+ist = data_ist_trafo; 
+clear data_ist_trafo
 
 % Plot der Gesamten Bahn
 f0 = figure('Color','white','Name','Soll und Istbahn (gesamte Messung)');
@@ -600,7 +673,7 @@ view(3)
 
 % Plotten der Segmente x1 bis x2
 x1 = 1; 
-x2 = 3; 
+x2 = 56; 
 
 
 f1 = figure('Color','white','Name','Soll- und Istbahnen (Bahnsegmente)');
@@ -703,7 +776,30 @@ legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
 grid on
 axis padded
 
-clear c1 c2 c3 c4 c5 c6 c7 x1 x2 n i f0 f1 f2
+
 
 end
+
+if plots == true && evaluate_orientation == true
+
+    % euler_transformation(euler_ist,euler_soll, trafo_euler)
+    % euler_trans = seg_trafo;
+
+    % Plot 
+    figure
+    hold on 
+    plot(str2double(data_soll.timestamp),euler_soll(:,1))
+    plot(str2double(data_soll.timestamp),euler_soll(:,2))
+    plot(str2double(data_soll.timestamp),euler_soll(:,3))
+    plot(str2double(data_ist.timestamp),euler_trans(:,1))
+    plot(str2double(data_ist.timestamp),euler_trans(:,2))
+    plot(str2double(data_ist.timestamp),euler_trans(:,3))
+    hold off
+end
+
+clear c1 c2 c3 c4 c5 c6 c7 x1 x2 n i f0 f1 f2
+
+%%
+
+toc;
 
