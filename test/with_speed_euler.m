@@ -4,19 +4,19 @@
 bahn_id_ = '171991223';
 
 % Berechnung der Metriken für die Geschwindikeitsabweichungen
-evaluate_velocity = true;
+evaluate_velocity = false;
 
 % Berechnung der Metriken für die Orientierungsabweichungen
-evaluate_orientation = false;
+evaluate_orientation = true;
 
 % Berechnung der Metriken für bestimmte Bahnabschnitte
-evaluate_segmentwise = false;
+evaluate_segmentwise = true;
 if evaluate_segmentwise
     segment_first = 5;
     segment_last = 7;
 end
 % Berechnung der Metriken für die gesamte Messaufnahme
-evaluate_all = false;
+evaluate_all = true;
 
 % Plotten der Daten 
 plots = false;
@@ -137,53 +137,11 @@ elseif evaluate_velocity == true && evaluate_orientation == false
     data_ist = fetch(conn, query);
     data_ist = sortrows(data_ist,'timestamp');
     
-    % % Auslesen der gesamten Soll-Daten
-
-    % query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_twist_soll ' ...
-    %         'WHERE robotervermessung.bewegungsdaten.bahn_twist_soll.bahn_id = ''' bahn_id_ ''''];
-    query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_position_soll ' ...
-            'WHERE robotervermessung.bewegungsdaten.bahn_position_soll.bahn_id = ''' bahn_id_ ''''];
+    % Auslesen der gesamten Soll-Daten
+    query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_twist_soll ' ...
+            'WHERE robotervermessung.bewegungsdaten.bahn_twist_soll.bahn_id = ''' bahn_id_ ''''];
     data_soll = fetch(conn, query);
     data_soll = sortrows(data_soll,'timestamp');
-
-%%%%%% Interpolation der Sollgeschwindigkeit über Positionen und Timestamp
-    % vel_soll_time = data_soll(:,4);
-    
-    vel_soll = data_soll(:,4:7);
-    vel_soll.timestamp = str2double(vel_soll.timestamp);
-    % vel_soll = table2array(vel_soll);
-    
-    % Timestamps in Sekunden
-    vel_soll.timestamp = (vel_soll.timestamp - vel_soll.timestamp(1,1))/1e9;
-
-
-    v = [diff(vel_soll.x_soll)./diff(vel_soll.timestamp), diff(vel_soll.y_soll)./diff(vel_soll.timestamp), diff(vel_soll.z_soll)./diff(vel_soll.timestamp)];
-    v = sqrt(v(:,1).^2 + v(:,2).^2 + v(:,3).^2);
-    v2 = [diff(vel_soll.x_soll) diff(vel_soll.y_soll) diff(vel_soll.z_soll)];
-    v2 = sqrt(v2(:,1).^2 + v2(:,2).^2 + v2(:,3).^2);
-
-    idx_zero = find(v2 == 0);
-
-    v2(idx_zero) = [];
-    t = diff(vel_soll.timestamp);
-    t(idx_zero) = [];
-
-    v3 = [diff(vel_soll.x_soll) , diff(vel_soll.y_soll), diff(vel_soll.z_soll)];
-    v3(idx_zero,:) = [];
-
-    v4 = [v3(:,1)./t, v3(:,2)./t, v3(:,3)./t];
-    v5 = sqrt(v4(:,1).^2 + v4(:,2).^2 + v4(:,3).^2);
-
-
-% window = 37; 
-% 
-% ma_filter = (1/window)* ones (1,window);
-% abbx_filtered = filter(ma_filter,1,abb_positions2(:,1));
-% abby_filtered = filter(ma_filter,1,abb_positions2(:,2));
-% abbz_filtered = filter(ma_filter,1,abb_positions2(:,3));
-% 
-% abb_filtered = [abbx_filtered abby_filtered abbz_filtered];
-
 
 else
 
@@ -248,68 +206,7 @@ for i = 1:1:length(seg_id)
     end
 end
 
-
-if evaluate_velocity == true && evaluate_orientation == false 
-
-    disp('Es wird die Geschwindigkeit ausgewertet!')
-
-    % Speichern der einzelnen Semgente in Tabelle
-    segments_ist = array2table([{data_ist.segment_id(1)} data_ist.tcp_speed_ist(1:idx_new_seg_ist(1)-1)], "VariableNames",{'segment_id','tcp_speed_ist'});
-    
-    for i = 1:num_segments
-    
-        if i == length(idx_new_seg_ist)
-            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.tcp_speed_ist(idx_new_seg_ist(i):end)]);
-        else
-            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.tcp_speed_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1)]);
-        end
-    
-    end
-    
-    segments_soll = array2table([{data_soll.segment_id(1)} data_soll.tcp_speed_soll(1:idx_new_seg_soll(1)-1)], "VariableNames",{'segment_id','tcp_speed_soll'});
-    for i = 1:num_segments
-        if i == length(idx_new_seg_soll)
-            segments_soll(i+1,:) = array2table([{segment_ids{i,:}} data_soll.tcp_speed_soll(idx_new_seg_soll(i):end)]);
-        else
-            segments_soll(i+1,:)= array2table([{segment_ids{i,:}} data_soll.tcp_speed_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1)]);
-        end    
-    end
-    
-elseif evaluate_velocity == false && evaluate_orientation == true
-
-    disp('Es wird die Orientierung ausgewertet!')
-
-    % Speichern der einzelnen Semgente in Tabelle
-    segments_ist = array2table([{data_ist.segment_id(1)} euler_ist(1:idx_new_seg_ist(1)-1,1) euler_ist(1:idx_new_seg_ist(1)-1,2) euler_ist(1:idx_new_seg_ist(1)-1,3)], "VariableNames",{'segment_id','roll_ist','pitch_ist','yaw_ist'});
-    
-    for i = 1:num_segments
-    
-        if i == length(idx_new_seg_ist)
-            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} euler_ist(idx_new_seg_ist(i):end,1) euler_ist(idx_new_seg_ist(i):end,2) euler_ist(idx_new_seg_ist(i):end,3)]);
-        else
-            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,1) euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,2) euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,3)]);
-        end
-    
-    end
-    
-    segments_soll = array2table([{data_soll.segment_id(1)} euler_soll(1:idx_new_seg_soll(1)-1,1) euler_soll(1:idx_new_seg_soll(1)-1,2) euler_soll(1:idx_new_seg_soll(1)-1,3)], "VariableNames",{'segment_id','roll_soll','pitch_soll','yaw_soll'});
-    for i = 1:num_segments
-        if i == length(idx_new_seg_soll)
-            segments_soll(i+1,:) = array2table([{segment_ids{i,:}} euler_soll(idx_new_seg_soll(i):end,1) euler_soll(idx_new_seg_soll(i):end,2) euler_soll(idx_new_seg_soll(i):end,3)]);
-        else
-            segments_soll(i+1,:)= array2table([{segment_ids{i,:}} euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,1) euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,2) euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,3)]);
-        end    
-    end
-    
-    % Transformation der Eulerwinkel für alle Segemente
-    segments_trafo = table();
-    for i = 1:1:num_segments+1
-        euler_transformation(segments_ist(i,:),segments_soll(i,:), trafo_euler)
-        segments_trafo(i,:) = seg_trafo;
-    end
-
-%%%%%%% Sonst automatisch Auswertung von Positionsdaten 
-else
+if evaluate_velocity == false && evaluate_orientation == false 
 
     % Speichern der einzelnen Semgente in Tabelle
     segments_ist = array2table([{data_ist.segment_id(1)} data_ist.x_ist(1:idx_new_seg_ist(1)-1) data_ist.y_ist(1:idx_new_seg_ist(1)-1) data_ist.z_ist(1:idx_new_seg_ist(1)-1)], "VariableNames",{'segment_id','x_ist','y_ist','z_ist'});
@@ -338,6 +235,65 @@ else
     for i = 1:1:num_segments+1
         coord_transformation(segments_ist(i,:),trafo_rot, trafo_trans)
         segments_trafo(i,:) = pos_ist_trafo;
+    end
+
+elseif evaluate_velocity == true 
+
+    disp('Es wird die Geschwindigkeit ausgewertet!')
+
+    % Speichern der einzelnen Semgente in Tabelle
+    segments_ist = array2table([{data_ist.segment_id(1)} data_ist.tcp_speed_ist(1:idx_new_seg_ist(1)-1)], "VariableNames",{'segment_id','tcp_speed_ist'});
+    
+    for i = 1:num_segments
+    
+        if i == length(idx_new_seg_ist)
+            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.tcp_speed_ist(idx_new_seg_ist(i):end)]);
+        else
+            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.tcp_speed_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1)]);
+        end
+    
+    end
+    
+    segments_soll = array2table([{data_soll.segment_id(1)} data_soll.tcp_speed_soll(1:idx_new_seg_soll(1)-1)], "VariableNames",{'segment_id','tcp_speed_soll'});
+    for i = 1:num_segments
+        if i == length(idx_new_seg_soll)
+            segments_soll(i+1,:) = array2table([{segment_ids{i,:}} data_soll.tcp_speed_soll(idx_new_seg_soll(i):end)]);
+        else
+            segments_soll(i+1,:)= array2table([{segment_ids{i,:}} data_soll.tcp_speed_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1)]);
+        end    
+    end
+    
+elseif evaluate_orientation == true
+
+    disp('Es wird die Orientierung ausgewertet!')
+
+    % Speichern der einzelnen Semgente in Tabelle
+    segments_ist = array2table([{data_ist.segment_id(1)} euler_ist(1:idx_new_seg_ist(1)-1,1) euler_ist(1:idx_new_seg_ist(1)-1,2) euler_ist(1:idx_new_seg_ist(1)-1,3)], "VariableNames",{'segment_id','roll_ist','pitch_ist','yaw_ist'});
+    
+    for i = 1:num_segments
+    
+        if i == length(idx_new_seg_ist)
+            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} euler_ist(idx_new_seg_ist(i):end,1) euler_ist(idx_new_seg_ist(i):end,2) euler_ist(idx_new_seg_ist(i):end,3)]);
+        else
+            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,1) euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,2) euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,3)]);
+        end
+    
+    end
+    
+    segments_soll = array2table([{data_soll.segment_id(1)} euler_soll(1:idx_new_seg_soll(1)-1,1) euler_soll(1:idx_new_seg_soll(1)-1,2) euler_soll(1:idx_new_seg_soll(1)-1,3)], "VariableNames",{'segment_id','roll_soll','pitch_soll','yaw_soll'});
+    for i = 1:num_segments
+        if i == length(idx_new_seg_soll)
+            segments_soll(i+1,:) = array2table([{segment_ids{i,:}} euler_soll(idx_new_seg_soll(i):end,1) euler_soll(idx_new_seg_soll(i):end,2) euler_soll(idx_new_seg_soll(i):end,3)]);
+        else
+            segments_soll(i+1,:)= array2table([{segment_ids{i,:}} euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,1) euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,2) euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,3)]);
+        end    
+    end
+    
+    % % Koordinatentransformation für alle Segemente
+    segments_trafo = table();
+    for i = 1:1:num_segments+1
+        euler_transformation(segments_ist(i,:),segments_soll(i,:), trafo_euler)
+        segments_trafo(i,:) = seg_trafo;
     end
 
 end
@@ -843,18 +799,6 @@ end
 
 clear c1 c2 c3 c4 c5 c6 c7 x1 x2 n i f0 f1 f2
 
+%%
+
 toc;
-
-%% Geschwindigkeit
-
-
-% vel_soll_time = data_soll(:,4);
-
-vel_soll = data_soll(:,4:7);
-vel_soll.timestamp = str2double(vel_soll.timestamp);
-% vel_soll = table2array(vel_soll);
-
-% Timestamps in Sekunden
-vel_soll.timestamp = (vel_soll.timestamp - vel_soll.timestamp(1,1))/1e9;
-
-

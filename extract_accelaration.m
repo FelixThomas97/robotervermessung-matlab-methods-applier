@@ -339,7 +339,7 @@ ylabel('Beschleunigung [m/s^2]')
 abb_timestamps2 = abb_timestamps(idx_time_events(1):idx_time_events(end));
 abb_positions2 = abb_positions(idx_time_events(1):idx_time_events(end),:);
 
-% Vicon Daten ebenfallas zuschneiden
+% Vicon Daten ebenfalls zuschneiden
 
 % Ermittlung der Zeitstempel wo Ereignisse stattfinden
 idx_nearest_vicon = zeros(length(idx_time_events),1);
