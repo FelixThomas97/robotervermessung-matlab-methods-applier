@@ -38,3 +38,4 @@ codegen/
 03_Daten/
 .DS_STORE
 resources/
+test/

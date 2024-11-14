@@ -1,18 +1,29 @@
-%% Eingabe der ID
+%% Einstellungen
+
+clear;
+tic;
 
 % bahn_id_ = '172104917';
-bahn_id_ = '171991223';
+% bahn_id_ = '172070201';
+% bahn_id_ = '171991250';
+% bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
+
+% bahn_id_ = '172079653'; % ---> mit Orientierungsänderung
+bahn_id_ ='172054053';
+% bahn_id_ = '172079403'; % Kalibrierungsdatei selbst
+
+%%% Standard: --> Berechnung der Metriken für Positionsabweichungen %%%
 
 % Berechnung der Metriken für die Geschwindikeitsabweichungen
-evaluate_velocity = true;
+evaluate_velocity = false;
 
 % Berechnung der Metriken für die Orientierungsabweichungen
-evaluate_orientation = false;
+evaluate_orientation = true;
 
 % Berechnung der Metriken für bestimmte Bahnabschnitte
 evaluate_segmentwise = false;
 if evaluate_segmentwise
-    segment_first = 5;
+    segment_first = 1;
     segment_last = 7;
 end
 % Berechnung der Metriken für die gesamte Messaufnahme
@@ -21,10 +32,18 @@ evaluate_all = false;
 % Plotten der Daten 
 plots = false;
 
+% Upload in die Datenbank
+upload = false;
+
+% % Verbindung mit PostgreSQL
+% datasource = "RobotervermessungMATLAB";
+% username = "postgres";
+% password = "200195Beto";
+% conn = postgresql(datasource,username,password);
 % Verbindung mit PostgreSQL
 datasource = "RobotervermessungMATLAB";
-username = "postgres";
-password = "200195Beto";
+username = "felixthomas";
+password = "manager";
 conn = postgresql(datasource,username,password);
 
 % Überprüfe Verbindung
@@ -37,8 +56,6 @@ end
 clear datasource username password
 
 %% Suche nach zugehörigem "Calibration Run"
-
-tic;
 
 query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE robotervermessung.bewegungsdaten.bahn_info.calibration_run = true';
 
@@ -62,12 +79,22 @@ else
     disp('Zu dem ausgewählten Datensatz liegt keine Kalibirierungsdatei vor!')
 end
 
-% Extrahieren der Calibrierungs-Daten
+% Extrahieren der Kalibrierungs-Daten
 tablename_cal = 'robotervermessung.bewegungsdaten.bahn_pose_ist';
 opts_cal = databaseImportOptions(conn,tablename_cal);
 opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
 data_cal_ist= sqlread(conn,tablename_cal,opts_cal);
 data_cal_ist = sortrows(data_cal_ist,'timestamp');
+
+
+tablename_cal = 'robotervermessung.bewegungsdaten.bahn_events';
+opts_cal = databaseImportOptions(conn,tablename_cal);
+opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
+data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
+data_cal_soll = sortrows(data_cal_soll,'timestamp');
+
+% Positionsdaten für Koordinatentransformation
+calibration(data_cal_ist,data_cal_soll)
 
 if evaluate_orientation == true
     % Wenn Orientierung wird andere Collection benötigt
@@ -77,33 +104,47 @@ if evaluate_orientation == true
     data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
     data_cal_soll = sortrows(data_cal_soll,'timestamp');
 
+
+    
     % Transformation der Quaternionen/Eulerwinkel
     euler_transformation(data_cal_ist,data_cal_soll)
-else
-    tablename_cal = 'robotervermessung.bewegungsdaten.bahn_events';
-    opts_cal = databaseImportOptions(conn,tablename_cal);
-    opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
-    data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
-    data_cal_soll = sortrows(data_cal_soll,'timestamp');
-
-    % Positionsdaten für Koordinatentransformation
-    calibration(data_cal_ist,data_cal_soll)
 end
 
+% if evaluate_orientation == true
+%     % Wenn Orientierung wird andere Collection benötigt
+%     tablename_cal = 'robotervermessung.bewegungsdaten.bahn_orientation_soll';
+%     opts_cal = databaseImportOptions(conn,tablename_cal);
+%     opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
+%     data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
+%     data_cal_soll = sortrows(data_cal_soll,'timestamp');
+% 
+%     % Transformation der Quaternionen/Eulerwinkel
+%     euler_transformation(data_cal_ist,data_cal_soll)
+% else
+%     tablename_cal = 'robotervermessung.bewegungsdaten.bahn_events';
+%     opts_cal = databaseImportOptions(conn,tablename_cal);
+%     opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
+%     data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
+%     data_cal_soll = sortrows(data_cal_soll,'timestamp');
+% 
+%     % Positionsdaten für Koordinatentransformation
+%     calibration(data_cal_ist,data_cal_soll)
+% end
 
 clear data_cal data_cal_info diff_bahn_id min_diff_bahn_id min_idx opts_cal tablename_cal check_bahn_id
 clear query_cal min_diff_idx
 clear data_cal_ist data_cal_soll
 
 
-%% Anzahl an Segmenten bestimmen 
+%% Auslesen der für die entsprechende Auswertung benötigten Daten
 
-% Auslesen der Anzahl der Segmente der gesamten Messaufnahme
-query = ['SELECT bahn_id, np_ereignisse FROM robotervermessung.bewegungsdaten.bahn_info ' ...
+% Anzahl der Segmente der gesamten Messaufnahme bestimmen 
+query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_info ' ...
          'WHERE robotervermessung.bewegungsdaten.bahn_info.bahn_id = ''' bahn_id_ ''''];
-num_segments = fetch(conn, query);
-num_segments = num_segments.np_ereignisse;
+data_info = fetch(conn, query);
+num_segments = data_info.np_ereignisse;
 
+% Daten auslesen
 if evaluate_velocity == false && evaluate_orientation == true
 
     % Auslesen der gesamten Ist-Daten
@@ -137,7 +178,7 @@ elseif evaluate_velocity == true && evaluate_orientation == false
     data_ist = fetch(conn, query);
     data_ist = sortrows(data_ist,'timestamp');
     
-    % % Auslesen der gesamten Soll-Daten
+    % Auslesen der gesamten Soll-Daten
 
     % query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_twist_soll ' ...
     %         'WHERE robotervermessung.bewegungsdaten.bahn_twist_soll.bahn_id = ''' bahn_id_ ''''];
@@ -146,7 +187,8 @@ elseif evaluate_velocity == true && evaluate_orientation == false
     data_soll = fetch(conn, query);
     data_soll = sortrows(data_soll,'timestamp');
 
-%%%%%% Interpolation der Sollgeschwindigkeit über Positionen und Timestamp
+%%%%%%%%%%%%%%% Interpolation der Sollgeschwindigkeit über Positionen und Timestamp
+%%%%%%%%%%%%%%% (funktioniert noch nicht!)
     % vel_soll_time = data_soll(:,4);
     
     vel_soll = data_soll(:,4:7);
@@ -174,7 +216,6 @@ elseif evaluate_velocity == true && evaluate_orientation == false
     v4 = [v3(:,1)./t, v3(:,2)./t, v3(:,3)./t];
     v5 = sqrt(v4(:,1).^2 + v4(:,2).^2 + v4(:,3).^2);
 
-
 % window = 37; 
 % 
 % ma_filter = (1/window)* ones (1,window);
@@ -184,9 +225,10 @@ elseif evaluate_velocity == true && evaluate_orientation == false
 % 
 % abb_filtered = [abbx_filtered abby_filtered abbz_filtered];
 
+%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%
 
 else
-
     % Auslesen der gesamten Ist-Daten
     query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_pose_ist ' ...
             'WHERE robotervermessung.bewegungsdaten.bahn_pose_ist.bahn_id = ''' bahn_id_ ''''];
@@ -304,12 +346,14 @@ elseif evaluate_velocity == false && evaluate_orientation == true
     % Transformation der Eulerwinkel für alle Segemente
     segments_trafo = table();
     for i = 1:1:num_segments+1
-        euler_transformation(segments_ist(i,:),segments_soll(i,:), trafo_euler)
+        euler_transformation(segments_ist(i,:),segments_soll(i,:), trafo_euler, trafo_rot)
         segments_trafo(i,:) = seg_trafo;
     end
 
 %%%%%%% Sonst automatisch Auswertung von Positionsdaten 
 else
+
+    disp('Es wird die Position ausgewertet!')
 
     % Speichern der einzelnen Semgente in Tabelle
     segments_ist = array2table([{data_ist.segment_id(1)} data_ist.x_ist(1:idx_new_seg_ist(1)-1) data_ist.y_ist(1:idx_new_seg_ist(1)-1) data_ist.z_ist(1:idx_new_seg_ist(1)-1)], "VariableNames",{'segment_id','x_ist','y_ist','z_ist'});
@@ -344,27 +388,26 @@ end
 
 clear idx k seg_id query seg_trafo
 
-
-
 %% Berechnung der Metriken
 
 % Tabellen initialisieren
 table_sidtw_info = table();
-table_sidtw_distances = cell(num_segments+1,1);
+table_sidtw_deviation = cell(num_segments+1,1);
 table_dtw_info = table();
-table_dtw_distances = cell(num_segments+1,1);
+table_dtw_deviation = cell(num_segments+1,1);
 table_dfd_info = table();
-table_dfd_distances = cell(num_segments+1,1);
+table_dfd_deviation = cell(num_segments+1,1);
+
 % Wenn Geschwindigkeit ausgewertet werden soll sind die 1D-Metriken nicht durchfürbar
 if size(segments_soll,2) > 2
     table_euclidean_info = table();
-    table_euclidean_distances = cell(num_segments+1,1);
+    table_euclidean_deviation = cell(num_segments+1,1);
     table_lcss_info = table();
-    table_lcss_distances = cell(num_segments+1,1);
+    table_lcss_deviation = cell(num_segments+1,1);
 end
 
 % Berechnung der Metriken für alle Segmente
-for i = 1:1:num_segments+1
+for i = 1:1:num_segments
 
     if evaluate_velocity == false && evaluate_orientation == false 
         segment_trafo = [segments_trafo.x_ist{i}, segments_trafo.y_ist{i}, segments_trafo.z_ist{i}];
@@ -378,11 +421,13 @@ for i = 1:1:num_segments+1
 
     end
 
-    if size(segment_soll,2) > 1
+    if size(segment_soll,2) > 1 % Wird nicht betrachtet wenn Geschwindigkeit ausgewertet wird 
+
     % Berechnung euklidischer Abstand
     [euclidean_ist,euclidean_distances,~] = distance2curve(segment_trafo,segment_soll,'linear');
     % Berechnung LCSS
     [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(segment_soll,segment_trafo,false);
+
     end
     % Berechnung SIDTW
     [sidtw_distances, ~, ~, ~, sidtw_soll, sidtw_ist, ~, ~, ~] = fkt_selintdtw3d(segment_soll,segment_trafo,false);
@@ -397,24 +442,24 @@ for i = 1:1:num_segments+1
             % Euklidischer Abstand
             metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, data_ist.segment_id(1))
             table_euclidean_info = seg_euclidean_info;
-            table_euclidean_distances{1} = seg_euclidean_distances;
+            table_euclidean_deviation{1} = seg_euclidean_distances;
             % LCSS
             metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, data_ist.segment_id(1))
             table_lcss_info = seg_lcss_info;
-            table_lcss_distances{1} = seg_lcss_distances;
+            table_lcss_deviation{1} = seg_lcss_distances;
         end
         % SIDTW
         metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, data_ist.segment_id(1))
         table_sidtw_info = seg_sidtw_info;
-        table_sidtw_distances{1} = seg_sidtw_distances;
+        table_sidtw_deviation{1} = seg_sidtw_distances;
         % DTW
         metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, data_ist.segment_id(1))
         table_dtw_info = seg_dtw_info;
-        table_dtw_distances{1} = seg_dtw_distances;
+        table_dtw_deviation{1} = seg_dtw_distances;
         % DFD
         metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, data_ist.segment_id(1))
         table_dfd_info = seg_dfd_info;
-        table_dfd_distances{1} = seg_dfd_distances;       
+        table_dfd_deviation{1} = seg_dfd_distances;       
 
 
     else
@@ -422,24 +467,24 @@ for i = 1:1:num_segments+1
             % Euklidischer Abstand
             metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, segment_ids{i-1,:})
             table_euclidean_info(i,:) = seg_euclidean_info;
-            table_euclidean_distances{i} = seg_euclidean_distances;
+            table_euclidean_deviation{i} = seg_euclidean_distances;
             % LCSS
             metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i-1,:})
             table_lcss_info(i,:) = seg_lcss_info;
-            table_lcss_distances{i} = seg_lcss_distances;
+            table_lcss_deviation{i} = seg_lcss_distances;
         end
         % SIDTW
         metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i-1,:})
         table_sidtw_info(i,:) = seg_sidtw_info;
-        table_sidtw_distances{i} = seg_sidtw_distances;
+        table_sidtw_deviation{i} = seg_sidtw_distances;
         % DTW
         metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i-1,:})
         table_dtw_info(i,:) = seg_dtw_info;
-        table_dtw_distances{i} = seg_dtw_distances;
+        table_dtw_deviation{i} = seg_dtw_distances;
         % DFD
         metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i-1,:})
         table_dfd_info(i,:) = seg_dfd_info;
-        table_dfd_distances{i} = seg_dfd_distances;
+        table_dfd_deviation{i} = seg_dfd_distances;
 
 
     end
@@ -493,6 +538,7 @@ table_all_info.standard_deviation = mean(table_euclidean_info.euclidean_standard
 table_all_info.metrik = "euclidean";
 
 table_all_info = [table_all_info; sidtw; dtw; dfd; lcss];
+
 else
     table_all_info = [sidtw; dtw; dfd];
 end
@@ -505,35 +551,13 @@ clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distanc
 clear pos_ist_trafo segment_ist segment_soll segment_trafo i min_diff 
 
 
-%% Plotten der transformierten Positionen 
-
-% % Farben
-% c1 = [0 0.4470 0.7410];
-% c2 = [0.8500 0.3250 0.0980];
-% c3 = [0.9290 0.6940 0.1250];
-% c4 = [0.4940 0.1840 0.5560];
-% c5 = [0.4660 0.6740 0.1880];
-% c6 = [0.3010 0.7450 0.9330];
-% c7 = [0.6350 0.0780 0.1840];
-% 
-% figure 
-% plot3(pos_ist_trafo(:,1),pos_ist_trafo(:,2),pos_ist_trafo(:,3),Color=c1)
-% hold on
-% plot3(pos_soll(:,1),pos_soll(:,2),pos_soll(:,3))
-% plot3(pos_soll(1,1),pos_soll(1,2),pos_soll(1,3),'ok',LineWidth=3)
-% plot3(pos_soll(end,1),pos_soll(end,2),pos_soll(end,3),'or',LineWidth=3)
-% 
-% view(2)
-
-% clear c1 c2 c3 c4 c5 c6 c7 
-
 %% Auswertung der gesamten Messaufnahme 
 
 if evaluate_all == true && evaluate_velocity == false 
 
 
     if evaluate_orientation == true
-        euler_transformation(euler_ist,euler_soll, trafo_euler)
+        euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
         % !!!! Zur Sicherheit, damit nicht alle Daten ausgewertet werden !!!!!
         data_all_ist = euler_trans(1:1000,:);
         data_ist_trafo = data_all_ist;
@@ -597,13 +621,12 @@ end
 
 %% Auswertung bestimmter Bahnabschnitte
  
-
 if evaluate_segmentwise == true && evaluate_velocity == false
 
     n = abs(segment_first - segment_last) + 1;
 
     if evaluate_orientation == true
-        euler_transformation(euler_ist,euler_soll, trafo_euler)
+        euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
         data_ist_ = data_ist;
         data_soll_ = data_soll; 
         data_ist = euler_trans;
@@ -680,181 +703,373 @@ if evaluate_segmentwise == true && evaluate_velocity == false
 end
 
 %% Plotten
+plots = 1;
+if plots == true
+    % Farben
+    c1 = [0 0.4470 0.7410];
+    c2 = [0.8500 0.3250 0.0980];
+    c3 = [0.9290 0.6940 0.1250];
+    c4 = [0.4940 0.1840 0.5560];
+    c5 = [0.4660 0.6740 0.1880];
+    c6 = [0.3010 0.7450 0.9330];
+    c7 = [0.6350 0.0780 0.1840];
+end
 
-% plots = true;
+if plots == true && evaluate_velocity == false && evaluate_orientation == false
+    
+    ist = table2array(data_ist(:,5:7));
+    soll = table2array(data_soll(:,5:7));
+    
+    % Koordinatentrafo für alle Daten 
+    coord_transformation(ist,trafo_rot, trafo_trans)
+    ist = data_ist_trafo; 
+    clear data_ist_trafo
+    
+    % Plot der Gesamten Bahn
+    f0 = figure('Color','white','Name','Soll und Istbahn (gesamte Messung)');
+    f0.Position(3:4) = [1520 840];
+    hold on 
+    plot3(soll(:,1),soll(:,2),soll(:,3),Color=c1,LineWidth=1.5)
+    plot3(ist(:,1),ist(:,2),ist(:,3),Color=c2,LineWidth=1.5)
+    xlabel('x','FontWeight','bold');
+    ylabel('y','FontWeight','bold');
+    zlabel('z','FontWeight','bold','Rotation',0);
+    legend('Sollbahn (ABB)','Istbahn (VICON)')
+    grid on 
+    view(3)
 
-if plots == true && evaluate_velocity == false
-
-% Farben
-c1 = [0 0.4470 0.7410];
-c2 = [0.8500 0.3250 0.0980];
-c3 = [0.9290 0.6940 0.1250];
-c4 = [0.4940 0.1840 0.5560];
-c5 = [0.4660 0.6740 0.1880];
-c6 = [0.3010 0.7450 0.9330];
-c7 = [0.6350 0.0780 0.1840];
-
-ist = table2array(data_ist(:,5:7));
-soll = table2array(data_soll(:,5:7));
-
-% Koordinatentrafo für alle Daten 
-coord_transformation(ist,trafo_rot, trafo_trans)
-ist = data_ist_trafo; 
-clear data_ist_trafo
-
-% Plot der Gesamten Bahn
-f0 = figure('Color','white','Name','Soll und Istbahn (gesamte Messung)');
-f0.Position(3:4) = [1520 840];
-hold on 
-plot3(soll(:,1),soll(:,2),soll(:,3),Color=c1,LineWidth=1.5)
-plot3(ist(:,1),ist(:,2),ist(:,3),Color=c2,LineWidth=1.5)
-xlabel('x','FontWeight','bold');
-ylabel('y','FontWeight','bold');
-zlabel('z','FontWeight','bold','Rotation',0);
-legend('Sollbahn (ABB)','Istbahn (VICON)')
-grid on 
-view(3)
-
-% Plotten der Segmente x1 bis x2
-x1 = 1; 
-x2 = 56; 
-
-
-f1 = figure('Color','white','Name','Soll- und Istbahnen (Bahnsegmente)');
-f1.Position(3:4) = [1520 840];
-hold on
-if x2-x1 == 0
-    plot3(segments_trafo.x_ist{x1+1,1},segments_trafo.y_ist{x1+1,1},segments_trafo.z_ist{x1+1,1},Color=c1,LineWidth=1.5)
-    plot3(segments_soll.x_soll{x1+1,1},segments_soll.y_soll{x1+1,1},segments_soll.z_soll{x1+1,1},Color=c2,LineWidth=1.5)
-else
-    for i = x1:1:x2-x1
-        plot3(segments_trafo.x_ist{i+1,1},segments_trafo.y_ist{i+1,1},segments_trafo.z_ist{i+1,1},Color=c1,LineWidth=1.5)
-        plot3(segments_soll.x_soll{i+1,1},segments_soll.y_soll{i+1,1},segments_soll.z_soll{i+1,1},Color=c2,LineWidth=1.5)
+    % Plotten der ausgewählten Segmente und deren Abweichungen 
+    if evaluate_segmentwise == true 
+    
+        f1 = figure('Color','white','Name','Soll- und Istbahnen (Bahnsegmente)');
+        f1.Position(3:4) = [1520 840];
+        hold on
+        if segment_last-segment_first == 0
+            plot3(segments_trafo.x_ist{segment_first+1,1},segments_trafo.y_ist{segment_first+1,1},segments_trafo.z_ist{segment_first+1,1},Color=c1,LineWidth=1.5)
+            plot3(segments_soll.x_soll{segment_first+1,1},segments_soll.y_soll{segment_first+1,1},segments_soll.z_soll{segment_first+1,1},Color=c2,LineWidth=1.5)
+        else
+            for i = segment_first:1:segment_last-segment_first
+                plot3(segments_trafo.x_ist{i+1,1},segments_trafo.y_ist{i+1,1},segments_trafo.z_ist{i+1,1},Color=c1,LineWidth=1.5)
+                plot3(segments_soll.x_soll{i+1,1},segments_soll.y_soll{i+1,1},segments_soll.z_soll{i+1,1},Color=c2,LineWidth=1.5)
+            end
+        end
+        title("Bahnabschnitte " + num2str(segment_first) + " bis " + num2str(segment_last))
+        xlabel('x','FontWeight','bold'); ylabel('y','FontWeight','bold'); zlabel('z','FontWeight','bold','Rotation',0);
+        legend('Sollbahn (ABB)','Istbahn (VICON)')
+        grid on 
+        view(3)
+        
+        f2 = figure('Color','white','Name','Mittlere Abweichungen (Bahnsegmente)');
+        f2.Position(3:4) = [1520 840];
+        subplot(2,2,1)
+        title('Mittlere Abweichungen zwischen Soll- und Istbahn')
+        hold on 
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_dtw_info.dtw_average_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c1)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_dfd_info.dfd_average_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c2)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_lcss_info.lcss_average_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c3)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_sidtw_info.sidtw_average_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c4)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_euclidean_info.euclidean_average_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c5)
+        % Plot der Werte der gesamten Bahn
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.average_distance(3,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c1)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.average_distance(4,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c2)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.average_distance(5,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c3)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.average_distance(2,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c4)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.average_distance(1,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c5)
+        xlabel('Bahnsegmente');
+        ylabel('Abweichung in mm');
+        legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
+        grid on
+        axis padded
+        
+        subplot(2,2,2)
+        title('Maximale Abweichungen zwischen Soll- und Istbahn')
+        hold on 
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_dtw_info.dtw_max_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c1)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_dfd_info.dfd_max_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c2)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_lcss_info.lcss_max_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c3)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_sidtw_info.sidtw_max_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c4)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_euclidean_info.euclidean_max_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c5)
+        % Plot der Werte der gesamten Bahn
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.max_distance(3,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c1)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.max_distance(4,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c2)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.max_distance(5,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c3)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.max_distance(2,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c4)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.max_distance(1,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c5)
+        xlabel('Bahnsegmente');
+        ylabel('Abweichung in mm');
+        legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
+        grid on
+        axis padded
+        
+        subplot(2,2,3)
+        title('Minimale Abweichungen zwischen Soll- und Istbahn')
+        hold on 
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_dtw_info.dtw_min_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c1)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_dfd_info.dfd_min_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c2)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_lcss_info.lcss_min_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c3)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_sidtw_info.sidtw_min_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c4)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_euclidean_info.euclidean_min_distance(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c5)
+        % Plot der Werte der gesamten Bahn
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.min_distance(3,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c1)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.min_distance(4,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c2)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.min_distance(5,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c3)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.min_distance(2,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c4)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.min_distance(1,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c5)
+        xlabel('Bahnsegmente');
+        ylabel('Abweichung in mm');
+        legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
+        grid on
+        axis padded
+        
+        subplot(2,2,4)
+        title('Standardabweichungen zwischen Soll- und Istbahn')
+        hold on 
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_dtw_info.dtw_standard_deviation(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c1)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_dfd_info.dfd_standard_deviation(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c2)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_lcss_info.lcss_standard_deviation(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c3)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_sidtw_info.sidtw_standard_deviation(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c4)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),table_euclidean_info.euclidean_standard_deviation(segment_first+1:segment_last+1,:),LineWidth=2.5,Color=c5)
+        % Plot der Werte der gesamten Bahn
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.standard_deviation(3,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c1)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.standard_deviation(4,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c2)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.standard_deviation(5,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c3)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.standard_deviation(2,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c4)
+        plot(linspace(segment_first,segment_last,segment_last-segment_first+1),repelem(table_all_info.standard_deviation(1,:),segment_last-segment_first+1,1),LineWidth=1.2,Color=c5)
+        xlabel('Bahnsegmente');
+        ylabel('Abweichung in mm');
+        legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
+        grid on
+        axis padded   
     end
 end
-title("Bahnabschnitte " + num2str(x1) + " bis " + num2str(x2))
-xlabel('x','FontWeight','bold'); ylabel('y','FontWeight','bold'); zlabel('z','FontWeight','bold','Rotation',0);
-legend('Sollbahn (ABB)','Istbahn (VICON)')
-grid on 
-view(3)
 
-f2 = figure('Color','white','Name','Mittlere Abweichungen (Bahnsegmente)');
-f2.Position(3:4) = [1520 840];
-subplot(2,2,1)
-title('Mittlere Abweichungen zwischen Soll- und Istbahn')
-hold on 
-plot(linspace(x1,x2,x2-x1+1),table_dtw_info.dtw_average_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c1)
-plot(linspace(x1,x2,x2-x1+1),table_dfd_info.dfd_average_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c2)
-plot(linspace(x1,x2,x2-x1+1),table_lcss_info.lcss_average_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c3)
-plot(linspace(x1,x2,x2-x1+1),table_sidtw_info.sidtw_average_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c4)
-plot(linspace(x1,x2,x2-x1+1),table_euclidean_info.euclidean_average_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c5)
-% Plot der Werte der gesamten Bahn
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.average_distance(3,:),x2-x1+1,1),LineWidth=1.2,Color=c1)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.average_distance(4,:),x2-x1+1,1),LineWidth=1.2,Color=c2)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.average_distance(5,:),x2-x1+1,1),LineWidth=1.2,Color=c3)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.average_distance(2,:),x2-x1+1,1),LineWidth=1.2,Color=c4)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.average_distance(1,:),x2-x1+1,1),LineWidth=1.2,Color=c5)
-xlabel('Bahnsegmente');
-ylabel('Abweichung in mm');
-legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
-grid on
-axis padded
+% Plotten der Euler-Winkel von Soll- und Ist-Bahn
+if plots == true && evaluate_orientation == true && evaluate_velocity == false
 
-subplot(2,2,2)
-title('Maximale Abweichungen zwischen Soll- und Istbahn')
-hold on 
-plot(linspace(x1,x2,x2-x1+1),table_dtw_info.dtw_max_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c1)
-plot(linspace(x1,x2,x2-x1+1),table_dfd_info.dfd_max_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c2)
-plot(linspace(x1,x2,x2-x1+1),table_lcss_info.lcss_max_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c3)
-plot(linspace(x1,x2,x2-x1+1),table_sidtw_info.sidtw_max_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c4)
-plot(linspace(x1,x2,x2-x1+1),table_euclidean_info.euclidean_max_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c5)
-% Plot der Werte der gesamten Bahn
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.max_distance(3,:),x2-x1+1,1),LineWidth=1.2,Color=c1)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.max_distance(4,:),x2-x1+1,1),LineWidth=1.2,Color=c2)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.max_distance(5,:),x2-x1+1,1),LineWidth=1.2,Color=c3)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.max_distance(2,:),x2-x1+1,1),LineWidth=1.2,Color=c4)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.max_distance(1,:),x2-x1+1,1),LineWidth=1.2,Color=c5)
-xlabel('Bahnsegmente');
-ylabel('Abweichung in mm');
-legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
-grid on
-axis padded
-
-subplot(2,2,3)
-title('Minimale Abweichungen zwischen Soll- und Istbahn')
-hold on 
-plot(linspace(x1,x2,x2-x1+1),table_dtw_info.dtw_min_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c1)
-plot(linspace(x1,x2,x2-x1+1),table_dfd_info.dfd_min_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c2)
-plot(linspace(x1,x2,x2-x1+1),table_lcss_info.lcss_min_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c3)
-plot(linspace(x1,x2,x2-x1+1),table_sidtw_info.sidtw_min_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c4)
-plot(linspace(x1,x2,x2-x1+1),table_euclidean_info.euclidean_min_distance(x1+1:x2+1,:),LineWidth=2.5,Color=c5)
-% Plot der Werte der gesamten Bahn
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.min_distance(3,:),x2-x1+1,1),LineWidth=1.2,Color=c1)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.min_distance(4,:),x2-x1+1,1),LineWidth=1.2,Color=c2)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.min_distance(5,:),x2-x1+1,1),LineWidth=1.2,Color=c3)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.min_distance(2,:),x2-x1+1,1),LineWidth=1.2,Color=c4)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.min_distance(1,:),x2-x1+1,1),LineWidth=1.2,Color=c5)
-xlabel('Bahnsegmente');
-ylabel('Abweichung in mm');
-legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
-grid on
-axis padded
-
-subplot(2,2,4)
-title('Standardabweichungen zwischen Soll- und Istbahn')
-hold on 
-plot(linspace(x1,x2,x2-x1+1),table_dtw_info.dtw_standard_deviation(x1+1:x2+1,:),LineWidth=2.5,Color=c1)
-plot(linspace(x1,x2,x2-x1+1),table_dfd_info.dfd_standard_deviation(x1+1:x2+1,:),LineWidth=2.5,Color=c2)
-plot(linspace(x1,x2,x2-x1+1),table_lcss_info.lcss_standard_deviation(x1+1:x2+1,:),LineWidth=2.5,Color=c3)
-plot(linspace(x1,x2,x2-x1+1),table_sidtw_info.sidtw_standard_deviation(x1+1:x2+1,:),LineWidth=2.5,Color=c4)
-plot(linspace(x1,x2,x2-x1+1),table_euclidean_info.euclidean_standard_deviation(x1+1:x2+1,:),LineWidth=2.5,Color=c5)
-% Plot der Werte der gesamten Bahn
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.standard_deviation(3,:),x2-x1+1,1),LineWidth=1.2,Color=c1)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.standard_deviation(4,:),x2-x1+1,1),LineWidth=1.2,Color=c2)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.standard_deviation(5,:),x2-x1+1,1),LineWidth=1.2,Color=c3)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.standard_deviation(2,:),x2-x1+1,1),LineWidth=1.2,Color=c4)
-plot(linspace(x1,x2,x2-x1+1),repelem(table_all_info.standard_deviation(1,:),x2-x1+1,1),LineWidth=1.2,Color=c5)
-xlabel('Bahnsegmente');
-ylabel('Abweichung in mm');
-legend('DTW','DFD','LCSS','SIDTW','Eukl. Dist.')
-grid on
-axis padded
-
-
-
-end
-
-if plots == true && evaluate_orientation == true
-
-    % euler_transformation(euler_ist,euler_soll, trafo_euler)
-    % euler_trans = seg_trafo;
+    euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
+    euler_soll = mod(euler_soll,360);
+    euler_trans = mod(euler_trans,360);
 
     % Plot 
     figure
     hold on 
-    plot(str2double(data_soll.timestamp),euler_soll(:,1))
-    plot(str2double(data_soll.timestamp),euler_soll(:,2))
-    plot(str2double(data_soll.timestamp),euler_soll(:,3))
-    plot(str2double(data_ist.timestamp),euler_trans(:,1))
-    plot(str2double(data_ist.timestamp),euler_trans(:,2))
-    plot(str2double(data_ist.timestamp),euler_trans(:,3))
+    plot(str2double(data_soll.timestamp),euler_soll(:,1),Color=c1,LineWidth=1.5)
+    plot(str2double(data_soll.timestamp),euler_soll(:,2),Color=c2,LineWidth=1.5)
+    plot(str2double(data_soll.timestamp),euler_soll(:,3),Color=c4,LineWidth=1.5)
+    plot(str2double(data_ist.timestamp),euler_trans(:,1),Color=c1)
+    plot(str2double(data_ist.timestamp),euler_trans(:,2),Color=c2)
+    plot(str2double(data_ist.timestamp),euler_trans(:,3),Color=c4)
     hold off
 end
 
-clear c1 c2 c3 c4 c5 c6 c7 x1 x2 n i f0 f1 f2
+clear c1 c2 c3 c4 c5 c6 c7 segment_first segment_last n i f0 f1 f2
 
 toc;
 
 %% Geschwindigkeit
 
+% euler_transformation(euler_ist,euler_soll, trafo_euler)
+% 
+% % vel_soll_time = data_soll(:,4);
+% 
+% vel_soll = data_soll(:,4:7);
+% vel_soll.timestamp = str2double(vel_soll.timestamp);
+% % vel_soll = table2array(vel_soll);
+% 
+% % Timestamps in Sekunden
+% vel_soll.timestamp = (vel_soll.timestamp - vel_soll.timestamp(1,1))/1e9;
 
-% vel_soll_time = data_soll(:,4);
+%% Ergebnisse in die Datenbank hochladen
+% 
+% upload = false; 
+% 
+% if upload == true
+% 
+%     upload = input("Eingabe 'upload' wenn die Ergebnisse hochgeladen werden soll. \n",'s');
+%     if strcmp(upload,'upload')
+%         disp('Upload erfolgt!')
+% 
+%         tablename = 'robotervermessung.auswertung.euclidean_info';
+%         sqlwrite(conn,tablename,table_euclidean_info)
+%         a = sqlread(conn,tablename);
+% 
+%     else
+%         disp('Upload fehlgeschlagen!')
+%     end
+% 
+% end
 
-vel_soll = data_soll(:,4:7);
-vel_soll.timestamp = str2double(vel_soll.timestamp);
-% vel_soll = table2array(vel_soll);
+% bahn_info = sqlread(conn,'robotervermessung.bewegungsdaten.bahn_info');
+% 
+% % 1. Möglichkeit
+% search = find(bahn_info.calibration_run == 1);
+% bahn_calibration = bahn_info(search,:); clear search 
+% 
+% % 2. Möglichkeit 
+% bahn_calibration_runs = bahn_info(bahn_info.calibration_run == 1, :);
+% %%
+% tablename = 'robotervermessung.auswertung.euclidean_info'
+% a = sqlread(conn,tablename)
+% %%
+% sqlquery = strcat("DROP TABLE ",tablename);
+% execute(conn,sqlquery)
+% %%
+% % table_euclidean_info.segment_id = convertStringsToChars(table_euclidean_info.segment_id)
+% %%
+% for i = 1:1:num_segments
+% 
+% 
+% 
+% end
 
-% Timestamps in Sekunden
-vel_soll.timestamp = (vel_soll.timestamp - vel_soll.timestamp(1,1))/1e9;
+
+% Der Variablen das erste Segment hinzufügen
+first_id = table(bahn_id_+"_0",'VariableNames',"segment_id");
+segment_ids = [first_id; segment_ids];
+clear first_id
+
+if upload == true
+    tic;
+    upload = input("Eingabe 'upload' wenn die Ergebnisse hochgeladen werden soll. \n",'s');
+    if strcmp(upload,'upload')
+        disp('Upload erfolgt!')
+
+        if evaluate_velocity == false && evaluate_orientation == false
+
+            type = {'position'};
+            % Info Tabellen 
+            table_euclidean_info = addvars(table_euclidean_info,repelem(type,height(table_euclidean_info),1),'NewVariableNames','evaluation');
+            table_sidtw_info = addvars(table_sidtw_info,repelem(type,height(table_sidtw_info),1),'NewVariableNames','evaluation');
+            table_dtw_info = addvars(table_dtw_info,repelem(type,height(table_dtw_info),1),'NewVariableNames','evaluation');
+            table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
+            table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
+            % Tabellen mit allen Abweichungen 
+            for i = 1:1:size(table_euclidean_deviation,1)-1
+                table_euclidean_deviation{i} = addvars(table_euclidean_deviation{i},repelem(type,height(table_euclidean_deviation{i}),1),'NewVariableNames','evaluation');
+                table_sidtw_deviation{i} = addvars(table_sidtw_deviation{i},repelem(type,height(table_sidtw_deviation{i}),1),'NewVariableNames','evaluation');
+                table_dtw_deviation{i} = addvars(table_dtw_deviation{i},repelem(type,height(table_dtw_deviation{i}),1),'NewVariableNames','evaluation');
+                table_dfd_deviation{i} = addvars(table_dfd_deviation{i},repelem(type,height(table_dfd_deviation{i}),1),'NewVariableNames','evaluation');
+                table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
+            end
+
+
+
+
+        end
+
+        if evaluate_velocity == false && evaluate_orientation == true  
+
+            type = {'orientation'};
+            % Info Tabellen 
+            table_euclidean_info = addvars(table_euclidean_info,repelem(type,height(table_euclidean_info),1),'NewVariableNames','evaluation');
+            table_sidtw_info = addvars(table_sidtw_info,repelem(type,height(table_sidtw_info),1),'NewVariableNames','evaluation');
+            table_dtw_info = addvars(table_dtw_info,repelem(type,height(table_dtw_info),1),'NewVariableNames','evaluation');
+            table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
+            table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
+            % Tabellen mit allen Abweichungen
+            for i = 1:1:size(table_euclidean_deviation,1)-1
+                table_euclidean_deviation{i} = addvars(table_euclidean_deviation{i},repelem(type,height(table_euclidean_deviation{i}),1),'NewVariableNames','evaluation');
+                table_sidtw_deviation{i} = addvars(table_sidtw_deviation{i},repelem(type,height(table_sidtw_deviation{i}),1),'NewVariableNames','evaluation');
+                table_dtw_deviation{i} = addvars(table_dtw_deviation{i},repelem(type,height(table_dtw_deviation{i}),1),'NewVariableNames','evaluation');
+                table_dfd_deviation{i} = addvars(table_dfd_deviation{i},repelem(type,height(table_dfd_deviation{i}),1),'NewVariableNames','evaluation');
+                table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
+            end
+        end
+
+        if evaluate_velocity == true && evaluate_orientation == false
+
+            type = {'speed'};
+            % Info Tabellen 
+            table_euclidean_info = addvars(table_euclidean_info,repelem(type,height(table_euclidean_info),1),'NewVariableNames','evaluation');
+            table_sidtw_info = addvars(table_sidtw_info,repelem(type,height(table_sidtw_info),1),'NewVariableNames','evaluation');
+            table_dtw_info = addvars(table_dtw_info,repelem(type,height(table_dtw_info),1),'NewVariableNames','evaluation');
+            table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
+            table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
+            % Tabellen mit allen Abweichungen
+            for i = 1:1:size(table_euclidean_deviation,1)-1
+                table_euclidean_deviation{i} = addvars(table_euclidean_deviation{i},repelem(type,height(table_euclidean_deviation{i}),1),'NewVariableNames','evaluation');
+                table_sidtw_deviation{i} = addvars(table_sidtw_deviation{i},repelem(type,height(table_sidtw_deviation{i}),1),'NewVariableNames','evaluation');
+                table_dtw_deviation{i} = addvars(table_dtw_deviation{i},repelem(type,height(table_dtw_deviation{i}),1),'NewVariableNames','evaluation');
+                table_dfd_deviation{i} = addvars(table_dfd_deviation{i},repelem(type,height(table_dfd_deviation{i}),1),'NewVariableNames','evaluation');
+                table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
+            end
+        end
+
+        % Schreiben in die Datenbank
+        upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)    
+
+        % !!!!! (dauert extrem lange) !!!!!
+        upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
+
+        disp('Der Upload war erfolgreich!')
+    else
+        disp('Upload fehlgeschlagen!')
+    end
+    toc;
+end
+
+% euler_ist = euler_ist * trafo_rot;
+
+
+% % UPDATE QUERY
+% query = sprintf("UPDATE %s SET evaluation = 'position' WHERE evaluation = 'orientation'",tablename);
+
+%%
+
+function upload2postgresql(tablename,table,segment_ids,evaluation,conn)
+
+if iscell(table)
+    % Abfrage ob der Eintrag der gesamten Bahn bereits existiert
+    checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}), evaluation);
+else
+    checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}), evaluation);
+end
+duplicates = fetch(conn, checkQuery);
+entryExists = duplicates{1,1} > 0;
+
+if entryExists == false
+    
+    % Daten der Segmente als eine einzige Tabelle schreiben
+    if iscell(table)
+        table = vertcat(table{:});
+    end
+
+    % Schreiben der gesamten Tabelle in die Datenbank
+    sqlwrite(conn,tablename,table)
+else
+
+    % Segmentweise prüfen wenn Eintrag bereits existiert
+    for i = 1:1:size(segment_ids,1)-1
+        
+        % Abfrage ob der Eintrag eines Segmentes bereits existiert
+        checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
+        duplicates = fetch(conn, checkQuery);
+        entryExists = duplicates{1,1} > 0;
+    
+        % Lösche Daten falls diese bereits existieren
+        if entryExists == true 
+            deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
+            execute(conn, deleteQuery);
+        end
+        
+        if iscell(table)
+            % Schreiben/Überschreiben der Daten in die Datenbank
+            sqlwrite(conn,tablename,table{i,:})
+        else          
+            sqlwrite(conn,tablename,table(i,:))
+        end
+    end
+end
+end
+
+
 
 

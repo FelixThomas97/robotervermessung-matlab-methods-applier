@@ -6,7 +6,9 @@ bahn_ids = repelem(bahn_id, length(distances),1);
 
 % Falls gesamte Bahn 
 if nargin  == 6
-    segment_id = {segment_id_};
+    segment_id = {convertStringsToChars(segment_id_)};
+
+    % segment_id = {segment_id_};
     segment_ids = repelem(segment_id, length(distances),1);
 end
 

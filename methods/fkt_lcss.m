@@ -23,7 +23,7 @@ function [lcss_av, lcss_max, lcss_distances, lcss_accdist, lcss_path, lcss_X, lc
     eucl_av = mean(eucl_distances);
     
     % Maximaler Abstand der bei einer Zuordnung möglich ist!
-    % MUSS ANGEGEBEN WERDEN --> Möglichkeit: ca. den max. euclidischen Abstand
+    % MUSS ANGEGEBEN WERDEN --> Möglichkeit: ca. den max. euklidischen Abstand
 
     lcss_epsilon = eucl_max + 0.5*eucl_max;
 

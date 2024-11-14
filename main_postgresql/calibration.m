@@ -37,7 +37,13 @@ for i = 1:length(ist_base_idx)
     ist_reference(i,:) = mean(ist(buffer,:));
 end
 
-clear buffer
+% Löschen von NaN Einträgen (kommt vor wenn die obige while-Schleife nicht durchläuft)
+findnans = isnan(ist_reference(:,1));
+nans = find(findnans == 1);
+ist_reference(nans,:) = [];
+soll_reference(nans,:) = [];
+ist_base_points(nans,:) = [];
+
 
 % Test zur Überprüfung der Abstände zwischen den neuen gemittelten
 % Positionen und den Positionen bei den Timestamps
