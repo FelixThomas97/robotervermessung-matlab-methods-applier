@@ -9,7 +9,7 @@ tic;
 % bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
 
 % bahn_id_ = '172079653'; % ---> mit Orientierungsänderung
-bahn_id_ ='172054053';
+bahn_id_ ='172054053'; % Orientierungsänderung ohne Kalibrierungsdatei
 % bahn_id_ = '172079403'; % Kalibrierungsdatei selbst
 
 %%% Standard: --> Berechnung der Metriken für Positionsabweichungen %%%
@@ -33,7 +33,7 @@ evaluate_all = false;
 plots = false;
 
 % Upload in die Datenbank
-upload = false;
+upload = true;
 
 % % Verbindung mit PostgreSQL
 % datasource = "RobotervermessungMATLAB";
@@ -321,6 +321,9 @@ elseif evaluate_velocity == false && evaluate_orientation == true
 
     disp('Es wird die Orientierung ausgewertet!')
 
+    % euler_soll = mod(euler_soll,360);
+    % euler_ist = mod(euler_ist,360);
+
     % Speichern der einzelnen Semgente in Tabelle
     segments_ist = array2table([{data_ist.segment_id(1)} euler_ist(1:idx_new_seg_ist(1)-1,1) euler_ist(1:idx_new_seg_ist(1)-1,2) euler_ist(1:idx_new_seg_ist(1)-1,3)], "VariableNames",{'segment_id','roll_ist','pitch_ist','yaw_ist'});
     
@@ -347,6 +350,7 @@ elseif evaluate_velocity == false && evaluate_orientation == true
     segments_trafo = table();
     for i = 1:1:num_segments+1
         euler_transformation(segments_ist(i,:),segments_soll(i,:), trafo_euler, trafo_rot)
+        % % Winkel von 0-360° statt -180° bis 180°
         segments_trafo(i,:) = seg_trafo;
     end
 
@@ -418,7 +422,9 @@ for i = 1:1:num_segments
     elseif evaluate_velocity == false && evaluate_orientation == true 
         segment_trafo = [segments_trafo.roll_ist{i}, segments_trafo.pitch_ist{i},  segments_trafo.yaw_ist{i}];
         segment_soll = [segments_soll.roll_soll{i}, segments_soll.pitch_soll{i}, segments_soll.yaw_soll{i}];
-
+        % Winkel von 0-360° statt -180° bis 180°
+        segment_trafo = mod(segment_trafo,360);
+        segment_soll = mod(segment_soll,360);
     end
 
     if size(segment_soll,2) > 1 % Wird nicht betrachtet wenn Geschwindigkeit ausgewertet wird 
@@ -846,25 +852,80 @@ end
 % Plotten der Euler-Winkel von Soll- und Ist-Bahn
 if plots == true && evaluate_orientation == true && evaluate_velocity == false
 
+    % Timestamps in Sekunden
+    time_ist = str2double(data_ist.timestamp);
+    time_soll = str2double(data_soll.timestamp);
+    timestamps_ist = (time_ist(:,1)- time_soll(1,1))/1e9;
+    timestamps_soll = (time_soll(:,1)- time_soll(1,1))/1e9;
+    
+
+    % Transformation aller Winkel 
     euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
+    % Winkel zwischen 0 - 360°
     euler_soll = mod(euler_soll,360);
     euler_trans = mod(euler_trans,360);
 
     % Plot 
-    figure
+    figure('Color','white','Name','Eulerwinkel von 0° bis 360°')
     hold on 
-    plot(str2double(data_soll.timestamp),euler_soll(:,1),Color=c1,LineWidth=1.5)
-    plot(str2double(data_soll.timestamp),euler_soll(:,2),Color=c2,LineWidth=1.5)
-    plot(str2double(data_soll.timestamp),euler_soll(:,3),Color=c4,LineWidth=1.5)
-    plot(str2double(data_ist.timestamp),euler_trans(:,1),Color=c1)
-    plot(str2double(data_ist.timestamp),euler_trans(:,2),Color=c2)
-    plot(str2double(data_ist.timestamp),euler_trans(:,3),Color=c4)
+    plot(timestamps_soll,euler_soll(:,1),Color=c1,LineWidth=1.5)
+    plot(timestamps_soll,euler_soll(:,2),Color=c2,LineWidth=1.5)
+    plot(timestamps_soll,euler_soll(:,3),Color=c4,LineWidth=1.5)
+    plot(timestamps_ist,euler_trans(:,1),Color=c1)
+    plot(timestamps_ist,euler_trans(:,2),Color=c2)
+    plot(timestamps_ist,euler_trans(:,3),Color=c4)
+    xlabel('Zeit [s]'); ylabel('Winkel [°]');
+    legend("roll","pitch","yaw")
     hold off
+
+    % % Plot 
+    % figure('Color','white','Name','Mit Originalzeit')
+    % hold on 
+    % plot(str2double(data_soll.timestamp),euler_soll(:,1),Color=c1,LineWidth=1.5)
+    % plot(str2double(data_soll.timestamp),euler_soll(:,2),Color=c2,LineWidth=1.5)
+    % plot(str2double(data_soll.timestamp),euler_soll(:,3),Color=c4,LineWidth=1.5)
+    % plot(str2double(data_ist.timestamp),euler_trans(:,1),Color=c1)
+    % plot(str2double(data_ist.timestamp),euler_trans(:,2),Color=c2)
+    % plot(str2double(data_ist.timestamp),euler_trans(:,3),Color=c4)
+    % xlabel('Zeit [s]'); ylabel('Winkel [°]');
+    % legend("roll","pitch","yaw")
+    % hold off
+
+    % Segmentweise plotten
+    k1 = 1;
+    k2 = 1; 
+    figure('Color','white','Name','Eulerwinkel aller Segmente (-180° bis 180°)')
+    hold on
+    for i = 1:1:num_segments
+        plot(timestamps_soll(k1:k1+length(segments_soll.roll_soll{i})-1),segments_soll.roll_soll{i},Color=c1,LineWidth=1.5)
+        plot(timestamps_soll(k1:k1+length(segments_soll.roll_soll{i})-1),segments_soll.pitch_soll{i},Color=c2,LineWidth=1.5)
+        plot(timestamps_soll(k1:k1+length(segments_soll.roll_soll{i})-1),segments_soll.yaw_soll{i},Color=c4,LineWidth=1.5)
+        plot(timestamps_ist(k2:k2+length(segments_trafo.roll_ist{i})-1),segments_trafo.roll_ist{i},Color=c1)
+        plot(timestamps_ist(k2:k2+length(segments_trafo.roll_ist{i})-1),segments_trafo.pitch_ist{i},Color=c2)
+        plot(timestamps_ist(k2:k2+length(segments_trafo.roll_ist{i})-1),segments_trafo.yaw_ist{i},Color=c4)
+        k1 = k1 + length(segments_soll.roll_soll{i});
+        k2 = k2 + length(segments_trafo.roll_ist{i});
+    end
+    xlabel('Zeit [s]'); ylabel('Winkel [°]');
+    legend("roll","pitch","yaw")
+    hold off
+
+    % 3D - Plot    
+    figure('Color','white','Name','Eulerwinkel 3D')
+    hold on
+    plot3(euler_soll(:,1),euler_soll(:,2),euler_soll(:,3),Color=c1,LineWidth=1.5);
+    plot3(euler_trans(:,1),euler_trans(:,2),euler_trans(:,3),Color=c2,LineWidth=1.5);
+    legend('Soll','Ist')
+    xlabel('Roll'); ylabel('Pitch'); zlabel('Yaw')
+    view(3)
+    hold off
+    axis equal
 end
 
-clear c1 c2 c3 c4 c5 c6 c7 segment_first segment_last n i f0 f1 f2
+clear c1 c2 c3 c4 c5 c6 c7 segment_first segment_last n i f0 f1 f2 k1 k2 time
 
 toc;
+
 
 %% Geschwindigkeit
 
@@ -995,19 +1056,19 @@ if upload == true
             end
         end
 
-        % Schreiben in die Datenbank
-        upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)    
+        % % Schreiben in die Datenbank
+        % upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
+        % upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
+        % upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
+        % upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
+        % upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)    
 
-        % !!!!! (dauert extrem lange) !!!!!
-        upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
+        % % !!!!! (dauert extrem lange) !!!!!
+        % upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
+        % upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
+        % upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
+        % upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
+        % upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
 
         disp('Der Upload war erfolgreich!')
     else
