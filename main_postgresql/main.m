@@ -4,12 +4,12 @@ clear;
 tic;
 
 % bahn_id_ = '172104917';
-% bahn_id_ = '172070201';
+bahn_id_ = '172079421'; % Bahn mit wenigen Punkten
 % bahn_id_ = '171991250';
 % bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
 
 % bahn_id_ = '172079653'; % ---> mit Orientierungsänderung
-bahn_id_ ='172054053'; % Orientierungsänderung ohne Kalibrierungsdatei
+% bahn_id_ ='172054053'; % Orientierungsänderung ohne Kalibrierungsdatei
 % bahn_id_ = '172079403'; % Kalibrierungsdatei selbst
 
 %%% Standard: --> Berechnung der Metriken für Positionsabweichungen %%%
@@ -33,7 +33,7 @@ evaluate_all = true;
 plots = false;
 
 % Upload in die Datenbank
-upload = false;
+upload = true;
 
 % % Verbindung mit PostgreSQL
 % datasource = "RobotervermessungMATLAB";
@@ -571,9 +571,12 @@ if evaluate_all == true && evaluate_velocity == false
         data_ist_trafo = data_all_ist;
         data_all_soll = euler_soll(1:1000,:);
     else 
-        % !!!! Zur Sicherheit, damit nicht alle Daten ausgewertet werden !!!!!
-        data_all_ist = data_ist(1:600,:);
-        data_all_soll = data_soll(1:500,:);
+        % % !!!! Zur Sicherheit, damit nicht alle Daten ausgewertet werden !!!!!
+        % data_all_ist = data_ist(1:600,:);
+        % data_all_soll = data_soll(1:500,:);
+
+        data_all_ist = data_ist;
+        data_all_soll = data_soll;
 
         data_all_ist = table2array(data_all_ist(:,5:7));
         data_all_soll = table2array(data_all_soll(:,5:7));
@@ -582,16 +585,32 @@ if evaluate_all == true && evaluate_velocity == false
         coord_transformation(data_all_ist,trafo_rot, trafo_trans)
     end
     
-    % Euklidischer Abstand 
+    % Euklidischer Abstand
+    tic
     [euclidean_ist,euclidean_distances,~] = distance2curve(data_ist_trafo,data_all_soll,'linear');
+    toc
+    disp('Euklidischer Abstand berechnet -->')
+
     % SIDTW
+    tic
     [sidtw_distances, ~, ~, ~, sidtw_soll, sidtw_ist, ~, ~, ~] = fkt_selintdtw3d(data_all_soll,data_ist_trafo,false);
+    toc
+    disp('SIDTW berechnet -->')
     % DTW
+    tic
     [dtw_distances, ~, ~, ~, dtw_soll, dtw_ist, ~, ~, ~, ~] = fkt_dtw3d(data_all_soll,data_ist_trafo,false);
+    toc
+    disp('DTW berechnet -->')
     % Frechet 
+    tic
     fkt_discreteFrechet(data_all_soll,data_ist_trafo,false);
+    toc
+    disp('DFD berechnet -->')
     % LCSS
+    tic
     [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(data_all_soll,data_ist_trafo,false);
+    toc
+    disp('LCSS berechnet -->')
 
     metric2postgresql('euclidean', euclidean_distances, data_all_soll, euclidean_ist, bahn_id_,bahn_id_)
     metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_,bahn_id_)
@@ -599,6 +618,14 @@ if evaluate_all == true && evaluate_velocity == false
     metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_,bahn_id_)
     metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_,bahn_id_)
 
+    table_euclidean_info = [seg_euclidean_info; table_euclidean_info];
+    table_sidtw_info = [seg_sidtw_info; table_sidtw_info];
+    table_dtw_info = [seg_dtw_info; table_dtw_info];
+    table_dfd_info = [seg_dfd_info; table_dfd_info];
+    table_lcss_info = [seg_lcss_info; table_lcss_info];
+
+
+%%%%%%%%%% Für die Auswertung in Matlab (für Datenbank irrelevant)
     % Anpassung der Spaltennamen für jede Tabelle
     seg_euclidean_info.Properties.VariableNames = {'bahn_id','segment_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
     seg_sidtw_info.Properties.VariableNames = {'bahn_id','segment_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
@@ -617,12 +644,12 @@ if evaluate_all == true && evaluate_velocity == false
         table_all_info_2 = table_all_info_2(:,[{'bahn_id'},{'calibration_id'},{'min_distances'},{'max_distance'},{'average_distance'},{'metrik'}]);
         clear calibration_ids
     end
-
+%%%%%%%%%%
     clear sidtw_distances sidtw_ist sidtw_soll seg_sidtw_info seg_sidtw_distances
     clear dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
     clear frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
     clear lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
-    % clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
+    clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
     clear data_ist_trafo
 
 end
@@ -689,6 +716,8 @@ if evaluate_segmentwise == true && evaluate_velocity == false
     metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_)
     metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_)
     metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_)
+
+
 
     % Anpassung der Spaltennamen für jede Tabelle
     seg_euclidean_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
@@ -989,6 +1018,10 @@ toc;
 % Der Variablen das erste Segment hinzufügen
 first_id = table(bahn_id_+"_0",'VariableNames',"segment_id");
 segment_ids = [first_id; segment_ids];
+if evaluate_all == true
+    first_id = table(string(bahn_id_),'VariableNames',"segment_id");
+    segment_ids = [first_id; segment_ids];
+end
 clear first_id
 
 if upload == true
@@ -1058,19 +1091,26 @@ if upload == true
             end
         end
 
-        % % Schreiben in die Datenbank
-        % upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
-        % upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
-        % upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
-        % upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
-        % upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)    
+        % Schreiben in die Datenbank
+        upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)
 
-        % % !!!!! (dauert extrem lange) !!!!!
-        % upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
-        % upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
-        % upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
-        % upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
-        % upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
+        % !!!!! (dauert extrem lange) !!!!!
+        if evaluate_all == true 
+            segment_ids = segment_ids(2:end,:); % segment_id = bahn_id löschen!
+        end
+        upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
+        disp('Euclidean Deviation hochgeladen')
+        upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
+        disp('SIDTW Deviation hochgeladen')
+        upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
+        disp('DTW Deviation hochgeladen')
+        upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
+        disp('DFD Deviation hochgeladen')
+        upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
 
         disp('Der Upload war erfolgreich!')
     else
@@ -1089,12 +1129,8 @@ end
 
 function upload2postgresql(tablename,table,segment_ids,evaluation,conn)
 
-if iscell(table)
-    % Abfrage ob der Eintrag der gesamten Bahn bereits existiert
-    checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}), evaluation);
-else
-    checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}), evaluation);
-end
+% Abfrage ob der Eintrag der gesamten Bahn bereits existiert
+checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}), evaluation);
 duplicates = fetch(conn, checkQuery);
 entryExists = duplicates{1,1} > 0;
 
@@ -1108,7 +1144,7 @@ if entryExists == false
     % Schreiben der gesamten Tabelle in die Datenbank
     sqlwrite(conn,tablename,table)
 else
-
+    
     % Segmentweise prüfen wenn Eintrag bereits existiert
     for i = 1:1:size(segment_ids,1)-1
         
