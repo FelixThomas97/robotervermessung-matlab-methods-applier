@@ -18,7 +18,7 @@ bahn_id_ ='172054053'; % Orientierungsänderung ohne Kalibrierungsdatei
 evaluate_velocity = false;
 
 % Berechnung der Metriken für die Orientierungsabweichungen
-evaluate_orientation = true;
+evaluate_orientation = false;
 
 % Berechnung der Metriken für bestimmte Bahnabschnitte
 evaluate_segmentwise = false;
@@ -27,13 +27,13 @@ if evaluate_segmentwise
     segment_last = 7;
 end
 % Berechnung der Metriken für die gesamte Messaufnahme
-evaluate_all = false;
+evaluate_all = true;
 
 % Plotten der Daten 
 plots = false;
 
 % Upload in die Datenbank
-upload = true;
+upload = false;
 
 % % Verbindung mit PostgreSQL
 % datasource = "RobotervermessungMATLAB";
@@ -559,7 +559,9 @@ clear pos_ist_trafo segment_ist segment_soll segment_trafo i min_diff
 
 %% Auswertung der gesamten Messaufnahme 
 
-if evaluate_all == true && evaluate_velocity == false 
+if evaluate_all == true && evaluate_velocity == false
+
+    % segment_id = bahn_id; 
 
 
     if evaluate_orientation == true
@@ -591,18 +593,18 @@ if evaluate_all == true && evaluate_velocity == false
     % LCSS
     [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(data_all_soll,data_ist_trafo,false);
 
-    metric2postgresql('euclidean', euclidean_distances, data_all_soll, euclidean_ist, bahn_id_)
-    metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_)
-    metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_)
-    metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_)
-    metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_)
+    metric2postgresql('euclidean', euclidean_distances, data_all_soll, euclidean_ist, bahn_id_,bahn_id_)
+    metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_,bahn_id_)
+    metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_,bahn_id_)
+    metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_,bahn_id_)
+    metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_,bahn_id_)
 
     % Anpassung der Spaltennamen für jede Tabelle
-    seg_euclidean_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_sidtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_dtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_dfd_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_lcss_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+    seg_euclidean_info.Properties.VariableNames = {'bahn_id','segment_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+    seg_sidtw_info.Properties.VariableNames = {'bahn_id','segment_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+    seg_dtw_info.Properties.VariableNames = {'bahn_id','segment_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+    seg_dfd_info.Properties.VariableNames = {'bahn_id','segment_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+    seg_lcss_info.Properties.VariableNames = {'bahn_id','segment_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
     
     table_all_info_2 = [seg_euclidean_info(1,:); seg_sidtw_info(1,:); seg_dtw_info(1,:); seg_dfd_info(1,:); seg_lcss_info(1,:)];
 
@@ -620,7 +622,7 @@ if evaluate_all == true && evaluate_velocity == false
     clear dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
     clear frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
     clear lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
-    clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
+    % clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
     clear data_ist_trafo
 
 end
