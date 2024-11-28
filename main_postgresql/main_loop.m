@@ -1,5 +1,6 @@
 %% Einstellungen
 
+
 clear;
 tic;
 
@@ -54,6 +55,21 @@ else
 end
 
 clear datasource username password
+%% Schleife um alle Daten auszuwerten 
+tic;
+
+query = 'SELECT bahn_id FROM robotervermessung.bewegungsdaten.bahn_info';
+bahn_ids = fetch(conn, query);
+bahn_ids = str2double(table2array(bahn_ids));
+query = "SELECT bahn_id FROM robotervermessung.auswertung.sidtw_deviation WHERE evaluation = 'position'";
+existing_bahn_ids = fetch(conn,query);
+existing_bahn_ids = str2double(table2array(existing_bahn_ids));
+existing_bahn_ids = unique(existing_bahn_ids);
+
+for k = 1:1:height(bahn_ids)
+
+bahn_id_ = convertStringsToChars(string(bahn_ids(k)));
+if ~ismember(bahn_ids(k),existing_bahn_ids)
 
 %% Suche nach zugehörigem "Calibration Run"
 
@@ -778,7 +794,6 @@ if evaluate_segmentwise == true && evaluate_velocity == false
 end
 
 %% Plotten
-plots = 1;
 if plots == true
     % Farben
     c1 = [0 0.4470 0.7410];
@@ -1151,12 +1166,16 @@ if upload == true
         disp('DFD Deviation hochgeladen')
         upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
 
-        disp('Der Upload war erfolgreich!')
+        disp('Der Upload war erfolgreich! Hochgeladene Datei: '+ string(bahn_id_))
     else
         disp('Upload fehlgeschlagen!')
     end
     toc;
 % end
+else
+    disp('Datei: '+string(i)+" mit der Bahn-ID "+ string(bahn_id_+ " lag bereits vor!"))
+end
+end
 
 
 %%
