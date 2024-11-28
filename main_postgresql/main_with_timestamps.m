@@ -4,11 +4,11 @@ clear;
 tic;
 
 % bahn_id_ = '172104917';
-% bahn_id_ = '171992752'; % Bahn mit wenigen Punkten
+bahn_id_ = '171992752'; % Bahn mit wenigen Punkten
 % bahn_id_ = '171991250';
 % bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
 
-bahn_id_ = '172079653'; % ---> mit Orientierungsänderung
+% bahn_id_ = '172079653'; % ---> mit Orientierungsänderung
 % bahn_id_ ='172054053'; % Orientierungsänderung ohne Kalibrierungsdatei
 % bahn_id_ = '172079403'; % Kalibrierungsdatei selbst
 
@@ -18,7 +18,7 @@ bahn_id_ = '172079653'; % ---> mit Orientierungsänderung
 evaluate_velocity = false;
 
 % Berechnung der Metriken für die Orientierungsabweichungen
-evaluate_orientation = true;
+evaluate_orientation = false;
 
 % Berechnung der Metriken für bestimmte Bahnabschnitte
 evaluate_segmentwise = false;
@@ -33,7 +33,7 @@ evaluate_all = false;
 plots = false;
 
 % Upload in die Datenbank
-upload = true;
+upload = false;
 
 % % Verbindung mit PostgreSQL
 % datasource = "RobotervermessungMATLAB";
@@ -358,26 +358,32 @@ elseif evaluate_velocity == false && evaluate_orientation == true
 else
 
     disp('Es wird die Position ausgewertet!')
+%%% Timestamp Auswertung
+    timestamps_ist = str2double(data_ist.timestamp);
+    timestamps_soll = str2double(data_soll.timestamp);
+
+    rel_timestamps_soll = (timestamps_soll - timestamps_ist(1))/1e9;
+    rel_timestamps_ist = (timestamps_ist - timestamps_ist(1))/1e9;
 
     % Speichern der einzelnen Semgente in Tabelle
-    segments_ist = array2table([{data_ist.segment_id(1)} data_ist.x_ist(1:idx_new_seg_ist(1)-1) data_ist.y_ist(1:idx_new_seg_ist(1)-1) data_ist.z_ist(1:idx_new_seg_ist(1)-1)], "VariableNames",{'segment_id','x_ist','y_ist','z_ist'});
+    segments_ist = array2table([{data_ist.segment_id(1)} data_ist.x_ist(1:idx_new_seg_ist(1)-1) data_ist.y_ist(1:idx_new_seg_ist(1)-1) data_ist.z_ist(1:idx_new_seg_ist(1)-1) rel_timestamps_ist(1:idx_new_seg_ist(1)-1)], "VariableNames",{'segment_id','x_ist','y_ist','z_ist','timestamp_ist'});
     
     for i = 1:num_segments
     
         if i == length(idx_new_seg_ist)
-            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.x_ist(idx_new_seg_ist(i):end) data_ist.y_ist(idx_new_seg_ist(i):end) data_ist.z_ist(idx_new_seg_ist(i):end)]);
+            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.x_ist(idx_new_seg_ist(i):end) data_ist.y_ist(idx_new_seg_ist(i):end) data_ist.z_ist(idx_new_seg_ist(i):end) rel_timestamps_ist(idx_new_seg_ist(i):end)]);
         else
-            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.x_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) data_ist.y_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) data_ist.z_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1)]);
+            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.x_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) data_ist.y_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) data_ist.z_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) rel_timestamps_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1)]);
         end
     
     end
     
-    segments_soll = array2table([{data_soll.segment_id(1)} data_soll.x_soll(1:idx_new_seg_soll(1)-1) data_soll.y_soll(1:idx_new_seg_soll(1)-1) data_soll.z_soll(1:idx_new_seg_soll(1)-1)], "VariableNames",{'segment_id','x_soll','y_soll','z_soll'});
+    segments_soll = array2table([{data_soll.segment_id(1)} data_soll.x_soll(1:idx_new_seg_soll(1)-1) data_soll.y_soll(1:idx_new_seg_soll(1)-1) data_soll.z_soll(1:idx_new_seg_soll(1)-1) rel_timestamps_soll(1:idx_new_seg_soll(1)-1)], "VariableNames",{'segment_id','x_soll','y_soll','z_soll','timestamp_soll'});
     for i = 1:num_segments
         if i == length(idx_new_seg_soll)
-            segments_soll(i+1,:) = array2table([{segment_ids{i,:}} data_soll.x_soll(idx_new_seg_soll(i):end) data_soll.y_soll(idx_new_seg_soll(i):end) data_soll.z_soll(idx_new_seg_soll(i):end)]);
+            segments_soll(i+1,:) = array2table([{segment_ids{i,:}} data_soll.x_soll(idx_new_seg_soll(i):end) data_soll.y_soll(idx_new_seg_soll(i):end) data_soll.z_soll(idx_new_seg_soll(i):end) rel_timestamps_soll(idx_new_seg_soll(i):end)]);
         else
-            segments_soll(i+1,:)= array2table([{segment_ids{i,:}} data_soll.x_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) data_soll.y_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) data_soll.z_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1)]);
+            segments_soll(i+1,:)= array2table([{segment_ids{i,:}} data_soll.x_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) data_soll.y_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) data_soll.z_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) rel_timestamps_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1)]);
         end    
     end
     
@@ -414,19 +420,17 @@ end
 for i = 1:1:num_segments
 
     if evaluate_velocity == false && evaluate_orientation == false 
-        segment_trafo = [segments_trafo.x_ist{i}, segments_trafo.y_ist{i}, segments_trafo.z_ist{i}];
-        segment_soll = [segments_soll.x_soll{i}, segments_soll.y_soll{i}, segments_soll.z_soll{i}];
+        segment_trafo = [segments_trafo.x_ist{i}, segments_trafo.y_ist{i}, segments_trafo.z_ist{i}, segments_trafo.timestamp_ist{i}];
+        segment_soll = [segments_soll.x_soll{i}, segments_soll.y_soll{i}, segments_soll.z_soll{i}, segments_soll.timestamp_soll{i}];
     elseif evaluate_velocity == true && evaluate_orientation == false 
         segment_trafo = segments_ist.tcp_speed_ist{i};
         segment_soll = segments_soll.tcp_speed_soll{i};
     elseif evaluate_velocity == false && evaluate_orientation == true 
         segment_trafo = [segments_trafo.roll_ist{i}, segments_trafo.pitch_ist{i},  segments_trafo.yaw_ist{i}];
         segment_soll = [segments_soll.roll_soll{i}, segments_soll.pitch_soll{i}, segments_soll.yaw_soll{i}];
-        % % Winkel von 0-360° statt -180° bis 180°
-        % segment_trafo = mod(segment_trafo,360);
-        % segment_soll = mod(segment_soll,360);
-        segment_trafo = abs(segment_trafo);
-        segment_soll = abs(segment_soll);
+        % Winkel von 0-360° statt -180° bis 180°
+        segment_trafo = mod(segment_trafo,360);
+        segment_soll = mod(segment_soll,360);
     end
 
     if size(segment_soll,2) > 1 % Wird nicht betrachtet wenn Geschwindigkeit ausgewertet wird 
@@ -434,7 +438,7 @@ for i = 1:1:num_segments
     % Berechnung euklidischer Abstand
     [euclidean_ist,euclidean_distances,~] = distance2curve(segment_trafo,segment_soll,'linear');
     % Berechnung LCSS
-    [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(segment_soll,segment_trafo,false);
+    % [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(segment_soll,segment_trafo,false);
 
     end
     % Berechnung SIDTW
@@ -453,12 +457,12 @@ for i = 1:1:num_segments
             order_eucl_first = size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((1:1:order_eucl_first)','VariableNames',{'points_order'})];
             table_euclidean_deviation{1} = seg_euclidean_distances;
-            % LCSS
-            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, data_ist.segment_id(1))
-            table_lcss_info = seg_lcss_info;
-            order_lcss_first = size(seg_lcss_distances,1);
-            seg_lcss_distances = [seg_lcss_distances, table((1:1:order_lcss_first)','VariableNames',{'points_order'})];
-            table_lcss_deviation{1} = seg_lcss_distances;
+            % % LCSS
+            % metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, data_ist.segment_id(1))
+            % table_lcss_info = seg_lcss_info;
+            % order_lcss_first = size(seg_lcss_distances,1);
+            % seg_lcss_distances = [seg_lcss_distances, table((1:1:order_lcss_first)','VariableNames',{'points_order'})];
+            % table_lcss_deviation{1} = seg_lcss_distances;
         end
         % SIDTW
         metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, data_ist.segment_id(1))
@@ -491,12 +495,12 @@ for i = 1:1:num_segments
             order_eucl_first = order_eucl_last;
             table_euclidean_deviation{i} = seg_euclidean_distances;
             % LCSS
-            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i-1,:})
-            table_lcss_info(i,:) = seg_lcss_info;
-            order_lcss_last = order_lcss_first + size(seg_lcss_distances,1);
-            seg_lcss_distances = [seg_lcss_distances, table((order_lcss_first+1:1:order_lcss_last)','VariableNames',{'points_order'})];
-            order_lcss_first = order_lcss_last;
-            table_lcss_deviation{i} = seg_lcss_distances;
+            % metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i-1,:})
+            % table_lcss_info(i,:) = seg_lcss_info;
+            % order_lcss_last = order_lcss_first + size(seg_lcss_distances,1);
+            % seg_lcss_distances = [seg_lcss_distances, table((order_lcss_first+1:1:order_lcss_last)','VariableNames',{'points_order'})];
+            % order_lcss_first = order_lcss_last;
+            % table_lcss_deviation{i} = seg_lcss_distances;
         end
         % SIDTW
         metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i-1,:})
@@ -553,14 +557,14 @@ dfd.standard_deviation = mean(table_dfd_info.dfd_standard_deviation);
 dfd.metrik = "dfd";
 
 if size(segment_soll,2) > 1
-lcss = table();
-lcss.bahn_id = {bahn_id_};  
-lcss.calibration_id = {calibration_id};  
-lcss.min_distance = min(table_lcss_info.lcss_min_distance); 
-lcss.max_distance = max(table_lcss_info.lcss_max_distance);
-lcss.average_distance = mean(table_lcss_info.lcss_average_distance);
-lcss.standard_deviation = mean(table_lcss_info.lcss_standard_deviation);
-lcss.metrik = "lcss";
+% lcss = table();
+% lcss.bahn_id = {bahn_id_};  
+% lcss.calibration_id = {calibration_id};  
+% lcss.min_distance = min(table_lcss_info.lcss_min_distance); 
+% lcss.max_distance = max(table_lcss_info.lcss_max_distance);
+% lcss.average_distance = mean(table_lcss_info.lcss_average_distance);
+% lcss.standard_deviation = mean(table_lcss_info.lcss_standard_deviation);
+% lcss.metrik = "lcss";
 
 table_all_info = table();
 table_all_info.bahn_id = {bahn_id_};
@@ -571,7 +575,7 @@ table_all_info.average_distance = mean(table_euclidean_info.euclidean_average_di
 table_all_info.standard_deviation = mean(table_euclidean_info.euclidean_standard_deviation);
 table_all_info.metrik = "euclidean";
 
-table_all_info = [table_all_info; sidtw; dtw; dfd; lcss];
+% table_all_info = [table_all_info; sidtw; dtw; dfd; lcss];
 
 else
     table_all_info = [sidtw; dtw; dfd];
@@ -926,11 +930,9 @@ if plots == true && evaluate_orientation == true && evaluate_velocity == false
 
     % Transformation aller Winkel 
     euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
-    % % Winkel zwischen 0 - 360°
-    % euler_soll = mod(euler_soll,360);
-    % euler_trans = mod(euler_trans,360);
-    euler_soll = abs(euler_soll);
-    euler_trans = abs(euler_trans);
+    % Winkel zwischen 0 - 360°
+    euler_soll = mod(euler_soll,360);
+    euler_trans = mod(euler_trans,360);
 
     % Plot 
     figure('Color','white','Name','Eulerwinkel von 0° bis 360°')
@@ -1059,7 +1061,7 @@ if evaluate_all == true
     segment_ids = [first_id; segment_ids];
 end
 clear first_id
-%%
+
 if upload == true
     tic;
     % upload = input("Eingabe 'upload' wenn die Ergebnisse hochgeladen werden soll. \n",'s');
@@ -1098,20 +1100,13 @@ if upload == true
             table_dtw_info = addvars(table_dtw_info,repelem(type,height(table_dtw_info),1),'NewVariableNames','evaluation');
             table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
             table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
-
             % Tabellen mit allen Abweichungen
             for i = 1:1:size(table_euclidean_deviation,1)-1
-                table_euclidean_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','euclidean_deviation','points_order'};      
-                table_sidtw_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','sidtw_deviation','sidtw_soll_roll','sidtw_soll_pitch','sidtw_soll_yaw','sidtw_ist_roll','sidtw_ist_pitch','sidtw_ist_yaw','points_order'};                                        
-                table_dtw_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','dtw_deviation','dtw_soll_roll','dtw_soll_pitch','dtw_soll_yaw','dtw_ist_roll','dtw_ist_pitch','dtw_ist_yaw','points_order'};                                        
-                table_dfd_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','dfd_deviation','dfd_soll_roll','dfd_soll_pitch','dfd_soll_yaw','dfd_ist_roll','dfd_ist_pitch','dfd_ist_yaw','points_order'};                                        
-                table_lcss_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','lcss_deviation','lcss_soll_roll','lcss_soll_pitch','lcss_soll_yaw','lcss_ist_roll','lcss_ist_pitch','lcss_ist_yaw','points_order'};                                        
-
-                % table_euclidean_deviation{i} = addvars(table_euclidean_deviation{i},repelem(type,height(table_euclidean_deviation{i}),1),'NewVariableNames','evaluation');
-                % table_sidtw_deviation{i} = addvars(table_sidtw_deviation{i},repelem(type,height(table_sidtw_deviation{i}),1),'NewVariableNames','evaluation');
-                % table_dtw_deviation{i} = addvars(table_dtw_deviation{i},repelem(type,height(table_dtw_deviation{i}),1),'NewVariableNames','evaluation');
-                % table_dfd_deviation{i} = addvars(table_dfd_deviation{i},repelem(type,height(table_dfd_deviation{i}),1),'NewVariableNames','evaluation');
-                % table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
+                table_euclidean_deviation{i} = addvars(table_euclidean_deviation{i},repelem(type,height(table_euclidean_deviation{i}),1),'NewVariableNames','evaluation');
+                table_sidtw_deviation{i} = addvars(table_sidtw_deviation{i},repelem(type,height(table_sidtw_deviation{i}),1),'NewVariableNames','evaluation');
+                table_dtw_deviation{i} = addvars(table_dtw_deviation{i},repelem(type,height(table_dtw_deviation{i}),1),'NewVariableNames','evaluation');
+                table_dfd_deviation{i} = addvars(table_dfd_deviation{i},repelem(type,height(table_dfd_deviation{i}),1),'NewVariableNames','evaluation');
+                table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
             end
         end
 
@@ -1135,26 +1130,26 @@ if upload == true
         end
         %%
 
-%         % Schreiben in die Datenbank
-%         upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
-%         upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
-%         upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
-%         upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
-%         upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)
-% %%
-%         % !!!!! (dauert extrem lange) !!!!!
-%         if evaluate_all == true 
-%             segment_ids = segment_ids(2:end,:); % segment_id = bahn_id löschen!
-%         end
-%         upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
-%         disp('Euclidean Deviation hochgeladen')
-%         upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
-%         disp('SIDTW Deviation hochgeladen')
-%         upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
-%         disp('DTW Deviation hochgeladen')
-%         upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
-%         disp('DFD Deviation hochgeladen')
-%         upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
+        % Schreiben in die Datenbank
+        upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)
+%%
+        % !!!!! (dauert extrem lange) !!!!!
+        if evaluate_all == true 
+            segment_ids = segment_ids(2:end,:); % segment_id = bahn_id löschen!
+        end
+        upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
+        disp('Euclidean Deviation hochgeladen')
+        upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
+        disp('SIDTW Deviation hochgeladen')
+        upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
+        disp('DTW Deviation hochgeladen')
+        upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
+        disp('DFD Deviation hochgeladen')
+        upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
 
         disp('Der Upload war erfolgreich!')
     else

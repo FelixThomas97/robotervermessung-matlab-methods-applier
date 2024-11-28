@@ -201,18 +201,22 @@ end
 ix = MappingIndexes(:,1);       
 iy = MappingIndexes(:,2);
 
-if size(result,2) == 6 
+if size(result,2) == 6         % Orientierungen und Positionen 
     % Interpolierte Bahnen
     dtw_X = result(:,[1 2 3]);
     dtw_Y = result(:, [4 5 6]);
-elseif size(result,2) == 2
+elseif size(result,2) == 2     % Geschwindigkeiten 
     dtw_X = result(:,1);
     dtw_Y = result(:,2);
+elseif size(result,2) == 8     % Orientierungen und Positionen mit Zeitstempel
+    dtw_X = result(:,[1 2 3 4]);
+    dtw_Y = result(:, [5 6 7 8]);
 end
 
 % Distanzen zwischen den interpolierten Bahnen
 distances = zeros(length(dtw_X),1);
 for i = 1:1:length(dtw_X)
+    % dist = fkt_euclDist(i,i,dtw_X(:,1:3),dtw_Y(:,1:3));
     dist = fkt_euclDist(i,i,dtw_X,dtw_Y);
     distances(i,1) = dist;
 end
