@@ -4,7 +4,7 @@ clear;
 tic;
 
 % bahn_id_ = '172104917';
-bahn_id_ = '172079421'; % Bahn mit wenigen Punkten
+bahn_id_ = '171992959'; % Bahn mit wenigen Punkten
 % bahn_id_ = '171991250';
 % bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
 
@@ -448,23 +448,34 @@ for i = 1:1:num_segments
             % Euklidischer Abstand
             metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, data_ist.segment_id(1))
             table_euclidean_info = seg_euclidean_info;
+            order_eucl_first = size(seg_euclidean_distances,1);
+            seg_euclidean_distances = [seg_euclidean_distances, table((1:1:order_eucl_first)','VariableNames',{'points_order'})];
             table_euclidean_deviation{1} = seg_euclidean_distances;
             % LCSS
             metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, data_ist.segment_id(1))
             table_lcss_info = seg_lcss_info;
+            order_lcss_first = size(seg_lcss_distances,1);
+            seg_lcss_distances = [seg_lcss_distances, table((1:1:order_lcss_first)','VariableNames',{'points_order'})];
             table_lcss_deviation{1} = seg_lcss_distances;
         end
         % SIDTW
         metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, data_ist.segment_id(1))
         table_sidtw_info = seg_sidtw_info;
+        order_sidtw_first = size(seg_sidtw_distances,1);
+        seg_sidtw_distances = [seg_sidtw_distances, table((1:1:order_sidtw_first)','VariableNames',{'points_order'})];
         table_sidtw_deviation{1} = seg_sidtw_distances;
+
         % DTW
         metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, data_ist.segment_id(1))
         table_dtw_info = seg_dtw_info;
+        order_dtw_first = size(seg_dtw_distances,1);
+        seg_dtw_distances = [seg_dtw_distances, table((1:1:order_dtw_first)','VariableNames',{'points_order'})];
         table_dtw_deviation{1} = seg_dtw_distances;
         % DFD
         metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, data_ist.segment_id(1))
         table_dfd_info = seg_dfd_info;
+        order_dfd_first = size(seg_dfd_distances,1);
+        seg_dfd_distances = [seg_dfd_distances, table((1:1:order_dfd_first)','VariableNames',{'points_order'})];
         table_dfd_deviation{1} = seg_dfd_distances;       
 
 
@@ -473,23 +484,38 @@ for i = 1:1:num_segments
             % Euklidischer Abstand
             metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, segment_ids{i-1,:})
             table_euclidean_info(i,:) = seg_euclidean_info;
+            order_eucl_last = order_eucl_first + size(seg_euclidean_distances,1);
+            seg_euclidean_distances = [seg_euclidean_distances, table((order_eucl_first+1:1:order_eucl_last)','VariableNames',{'points_order'})];
+            order_eucl_first = order_eucl_last;
             table_euclidean_deviation{i} = seg_euclidean_distances;
             % LCSS
             metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i-1,:})
             table_lcss_info(i,:) = seg_lcss_info;
+            order_lcss_last = order_lcss_first + size(seg_lcss_distances,1);
+            seg_lcss_distances = [seg_lcss_distances, table((order_lcss_first+1:1:order_lcss_last)','VariableNames',{'points_order'})];
+            order_lcss_first = order_lcss_last;
             table_lcss_deviation{i} = seg_lcss_distances;
         end
         % SIDTW
         metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i-1,:})
         table_sidtw_info(i,:) = seg_sidtw_info;
+        order_sidtw_last = order_sidtw_first + size(seg_sidtw_distances,1);
+        seg_sidtw_distances = [seg_sidtw_distances, table((order_sidtw_first+1:1:order_sidtw_last)','VariableNames',{'points_order'})];
+        order_sidtw_first = order_sidtw_last;
         table_sidtw_deviation{i} = seg_sidtw_distances;
         % DTW
         metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i-1,:})
         table_dtw_info(i,:) = seg_dtw_info;
+        order_dtw_last = order_dtw_first + size(seg_dtw_distances,1);
+        seg_dtw_distances = [seg_dtw_distances, table((order_dtw_first+1:1:order_dtw_last)','VariableNames',{'points_order'})];
+        order_dtw_first = order_dtw_last;
         table_dtw_deviation{i} = seg_dtw_distances;
         % DFD
         metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i-1,:})
         table_dfd_info(i,:) = seg_dfd_info;
+        order_dfd_last = order_dfd_first + size(seg_dfd_distances,1);
+        seg_dfd_distances = [seg_dfd_distances, table((order_dfd_first+1:1:order_dfd_last)','VariableNames',{'points_order'})];
+        order_dfd_first = order_dfd_last;
         table_dfd_deviation{i} = seg_dfd_distances;
 
 
@@ -549,6 +575,8 @@ else
     table_all_info = [sidtw; dtw; dfd];
 end
 
+clear order_eucl_first order_eucl_last order_lcss_first order_lcss_last 
+clear order_dfd_first order_dfd_last order_dtw_first order_dtw_last order_sidtw_first order_sidtw_last
 clear sidtw sidtw_distances sidtw_ist sidtw_soll seg_sidtw_info seg_sidtw_distances
 clear dtw dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
 clear dfd frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
@@ -575,8 +603,12 @@ if evaluate_all == true && evaluate_velocity == false
         % data_all_ist = data_ist(1:600,:);
         % data_all_soll = data_soll(1:500,:);
 
-        data_all_ist = data_ist;
-        data_all_soll = data_soll;
+        % Letztes Segment soll nicht ausgewertet werden
+        % Zeilenindex des ersten Auftretens finden
+        last_row_ist = find(data_ist.segment_id == segment_ids{end,1}, 1)-1;
+        data_all_ist = data_ist(1:last_row_ist,:);
+        last_row_soll = find(data_soll.segment_id == segment_ids{end,1}, 1)-1;
+        data_all_soll = data_soll(1:last_row_soll,:);
 
         data_all_ist = table2array(data_all_ist(:,5:7));
         data_all_soll = table2array(data_all_soll(:,5:7));
@@ -1026,8 +1058,8 @@ clear first_id
 
 if upload == true
     tic;
-    upload = input("Eingabe 'upload' wenn die Ergebnisse hochgeladen werden soll. \n",'s');
-    if strcmp(upload,'upload')
+    % upload = input("Eingabe 'upload' wenn die Ergebnisse hochgeladen werden soll. \n",'s');
+    % if strcmp(upload,'upload')
         disp('Upload erfolgt!')
 
         if evaluate_velocity == false && evaluate_orientation == false
@@ -1090,6 +1122,7 @@ if upload == true
                 table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
             end
         end
+        %%
 
         % Schreiben in die Datenbank
         upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
@@ -1097,7 +1130,7 @@ if upload == true
         upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
         upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
         upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)
-
+%%
         % !!!!! (dauert extrem lange) !!!!!
         if evaluate_all == true 
             segment_ids = segment_ids(2:end,:); % segment_id = bahn_id löschen!
@@ -1117,13 +1150,8 @@ if upload == true
         disp('Upload fehlgeschlagen!')
     end
     toc;
-end
+% end
 
-% euler_ist = euler_ist * trafo_rot;
-
-
-% % UPDATE QUERY
-% query = sprintf("UPDATE %s SET evaluation = 'position' WHERE evaluation = 'orientation'",tablename);
 
 %%
 
@@ -1147,18 +1175,18 @@ else
     
     % Segmentweise prüfen wenn Eintrag bereits existiert
     for i = 1:1:size(segment_ids,1)-1
-        
+
         % Abfrage ob der Eintrag eines Segmentes bereits existiert
         checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
         duplicates = fetch(conn, checkQuery);
         entryExists = duplicates{1,1} > 0;
-    
+
         % Lösche Daten falls diese bereits existieren
         if entryExists == true 
             deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
             execute(conn, deleteQuery);
         end
-        
+
         if iscell(table)
             % Schreiben/Überschreiben der Daten in die Datenbank
             sqlwrite(conn,tablename,table{i,:})
