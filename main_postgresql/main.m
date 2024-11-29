@@ -1062,8 +1062,8 @@ clear first_id
 %%
 if upload == true
     tic;
-    % upload = input("Eingabe 'upload' wenn die Ergebnisse hochgeladen werden soll. \n",'s');
-    % if strcmp(upload,'upload')
+    upload = input("Eingabe 'upload' wenn die Ergebnisse hochgeladen werden soll. \n",'s');
+    if strcmp(upload,'upload')
         disp('Upload erfolgt!')
 
         if evaluate_velocity == false && evaluate_orientation == false
@@ -1083,9 +1083,6 @@ if upload == true
                 table_dfd_deviation{i} = addvars(table_dfd_deviation{i},repelem(type,height(table_dfd_deviation{i}),1),'NewVariableNames','evaluation');
                 table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
             end
-
-
-
 
         end
 
@@ -1135,45 +1132,66 @@ if upload == true
         end
         %%
 
-%         % Schreiben in die Datenbank
-%         upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
-%         upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
-%         upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
-%         upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
-%         upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)
-% %%
-%         % !!!!! (dauert extrem lange) !!!!!
-%         if evaluate_all == true 
-%             segment_ids = segment_ids(2:end,:); % segment_id = bahn_id löschen!
-%         end
-%         upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
-%         disp('Euclidean Deviation hochgeladen')
-%         upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
-%         disp('SIDTW Deviation hochgeladen')
-%         upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
-%         disp('DTW Deviation hochgeladen')
-%         upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
-%         disp('DFD Deviation hochgeladen')
-%         upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
+        % Schreiben in die Datenbank
+        % Info Tabellen
+        upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)
+
+        if evaluate_all == true 
+            segment_ids = segment_ids(2:end,:); % segment_id = bahn_id löschen!
+        end
+        
+        % Abweichungen der Orientierungen 
+        if evaluate_orientation == true && evaluate_velocity == false                                           
+
+            upload2postgresql('robotervermessung.auswertung.euclidean_orientation',table_euclidean_deviation,segment_ids,type{1},conn)
+            disp('Euclidean Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.sidtw_orientation',table_sidtw_deviation,segment_ids,type{1},conn)
+            disp('SIDTW Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.dtw_orientation',table_dtw_deviation,segment_ids,type{1},conn)
+            disp('DTW Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.dfd_orientation',table_dfd_deviation,segment_ids,type{1},conn)
+            disp('DFD Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.lcss_orientation',table_lcss_deviation,segment_ids,type{1},conn)
+
+        else
+            % Abweichungen der Positionen
+            upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
+            disp('Euclidean Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
+            disp('SIDTW Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
+            disp('DTW Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
+            disp('DFD Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
+        end
 
         disp('Der Upload war erfolgreich!')
     else
         disp('Upload fehlgeschlagen!')
     end
     toc;
-% end
+end
 
 
 %%
 
 function upload2postgresql(tablename,table,segment_ids,evaluation,conn)
 
-% Abfrage ob der Eintrag der gesamten Bahn bereits existiert
-checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}), evaluation);
-duplicates = fetch(conn, checkQuery);
-entryExists = duplicates{1,1} > 0;
-
-if entryExists == false
+% % Abfrage ob der Eintrag der gesamten Bahn bereits existiert
+% if iscell(table)
+%     checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}));
+% else
+%     checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}), evaluation);
+% end
+% duplicates = fetch(conn, checkQuery);
+% entryExists = duplicates{1,1} > 0;
+% 
+% if entryExists == false
     
     % Daten der Segmente als eine einzige Tabelle schreiben
     if iscell(table)
@@ -1182,30 +1200,38 @@ if entryExists == false
 
     % Schreiben der gesamten Tabelle in die Datenbank
     sqlwrite(conn,tablename,table)
-else
+% else
     
-    % Segmentweise prüfen wenn Eintrag bereits existiert
-    for i = 1:1:size(segment_ids,1)-1
-
-        % Abfrage ob der Eintrag eines Segmentes bereits existiert
-        checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
-        duplicates = fetch(conn, checkQuery);
-        entryExists = duplicates{1,1} > 0;
-
-        % Lösche Daten falls diese bereits existieren
-        if entryExists == true 
-            deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
-            execute(conn, deleteQuery);
-        end
-
-        if iscell(table)
-            % Schreiben/Überschreiben der Daten in die Datenbank
-            sqlwrite(conn,tablename,table{i,:})
-        else          
-            sqlwrite(conn,tablename,table(i,:))
-        end
-    end
-end
+    % % Segmentweise prüfen wenn Eintrag bereits existiert
+    % for i = 1:1:size(segment_ids,1)-1
+    % 
+    %     % Abfrage ob der Eintrag eines Segmentes bereits existiert
+    %     if iscell(table)
+    %         checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s'", tablename, segment_ids{i,1});
+    %     else
+    %         checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
+    %     end
+    %     duplicates = fetch(conn, checkQuery);
+    %     entryExists = duplicates{1,1} > 0;
+    % 
+    %     % Lösche Daten falls diese bereits existieren
+    %     if entryExists == true
+    %         if iscell(table)
+    %             deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s'", tablename, segment_ids{i,1});
+    %         else
+    %             deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
+    %         end
+    %         execute(conn, deleteQuery);
+    %     end
+        % 
+        % if iscell(table)
+        %     % Schreiben/Überschreiben der Daten in die Datenbank
+        %     sqlwrite(conn,tablename,table{i,:})
+        % else          
+        %     sqlwrite(conn,tablename,table(i,:))
+        % end
+    % end
+% end
 end
 
 
