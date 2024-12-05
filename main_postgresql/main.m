@@ -8,9 +8,11 @@ tic;
 % bahn_id_ = '171991250';
 % bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
 
-bahn_id_ = '172079653'; % ---> mit Orientierungsänderung
+bahn_id_ = '172079653'; % ---> mit Orientierungsänderung (Hierzu wurden bereits beide Auswertungen hochgeladen)
 % bahn_id_ ='172054053'; % Orientierungsänderung ohne Kalibrierungsdatei
 % bahn_id_ = '172079403'; % Kalibrierungsdatei selbst
+
+bahn_id_ = '171993079';
 
 %%% Standard: --> Berechnung der Metriken für Positionsabweichungen %%%
 
@@ -18,7 +20,7 @@ bahn_id_ = '172079653'; % ---> mit Orientierungsänderung
 evaluate_velocity = false;
 
 % Berechnung der Metriken für die Orientierungsabweichungen
-evaluate_orientation = true;
+evaluate_orientation = false;
 
 % Berechnung der Metriken für bestimmte Bahnabschnitte
 evaluate_segmentwise = false;
@@ -33,7 +35,7 @@ evaluate_all = false;
 plots = false;
 
 % Upload in die Datenbank
-upload = true;
+upload = false;
 
 % % Verbindung mit PostgreSQL
 % datasource = "RobotervermessungMATLAB";
@@ -103,8 +105,6 @@ if evaluate_orientation == true
     opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
     data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
     data_cal_soll = sortrows(data_cal_soll,'timestamp');
-
-
     
     % Transformation der Quaternionen/Eulerwinkel
     euler_transformation(data_cal_ist,data_cal_soll)
@@ -774,7 +774,7 @@ if evaluate_segmentwise == true && evaluate_velocity == false
 end
 
 %% Plotten
-plots = 1;
+% plots = 1;
 if plots == true
     % Farben
     c1 = [0 0.4470 0.7410];
@@ -1075,14 +1075,6 @@ if upload == true
             table_dtw_info = addvars(table_dtw_info,repelem(type,height(table_dtw_info),1),'NewVariableNames','evaluation');
             table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
             table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
-            % Tabellen mit allen Abweichungen 
-            for i = 1:1:size(table_euclidean_deviation,1)-1
-                table_euclidean_deviation{i} = addvars(table_euclidean_deviation{i},repelem(type,height(table_euclidean_deviation{i}),1),'NewVariableNames','evaluation');
-                table_sidtw_deviation{i} = addvars(table_sidtw_deviation{i},repelem(type,height(table_sidtw_deviation{i}),1),'NewVariableNames','evaluation');
-                table_dtw_deviation{i} = addvars(table_dtw_deviation{i},repelem(type,height(table_dtw_deviation{i}),1),'NewVariableNames','evaluation');
-                table_dfd_deviation{i} = addvars(table_dfd_deviation{i},repelem(type,height(table_dfd_deviation{i}),1),'NewVariableNames','evaluation');
-                table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
-            end
 
         end
 
@@ -1096,19 +1088,13 @@ if upload == true
             table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
             table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
 
-            % Tabellen mit allen Abweichungen
+            % Tabellen mit allen Abweichungen (Spalten umbenennen)
             for i = 1:1:size(table_euclidean_deviation,1)-1
                 table_euclidean_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','euclidean_deviation','points_order'};      
                 table_sidtw_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','sidtw_deviation','sidtw_soll_roll','sidtw_soll_pitch','sidtw_soll_yaw','sidtw_ist_roll','sidtw_ist_pitch','sidtw_ist_yaw','points_order'};                                        
                 table_dtw_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','dtw_deviation','dtw_soll_roll','dtw_soll_pitch','dtw_soll_yaw','dtw_ist_roll','dtw_ist_pitch','dtw_ist_yaw','points_order'};                                        
                 table_dfd_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','dfd_deviation','dfd_soll_roll','dfd_soll_pitch','dfd_soll_yaw','dfd_ist_roll','dfd_ist_pitch','dfd_ist_yaw','points_order'};                                        
                 table_lcss_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','lcss_deviation','lcss_soll_roll','lcss_soll_pitch','lcss_soll_yaw','lcss_ist_roll','lcss_ist_pitch','lcss_ist_yaw','points_order'};                                        
-
-                % table_euclidean_deviation{i} = addvars(table_euclidean_deviation{i},repelem(type,height(table_euclidean_deviation{i}),1),'NewVariableNames','evaluation');
-                % table_sidtw_deviation{i} = addvars(table_sidtw_deviation{i},repelem(type,height(table_sidtw_deviation{i}),1),'NewVariableNames','evaluation');
-                % table_dtw_deviation{i} = addvars(table_dtw_deviation{i},repelem(type,height(table_dtw_deviation{i}),1),'NewVariableNames','evaluation');
-                % table_dfd_deviation{i} = addvars(table_dfd_deviation{i},repelem(type,height(table_dfd_deviation{i}),1),'NewVariableNames','evaluation');
-                % table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
             end
         end
 
@@ -1130,44 +1116,43 @@ if upload == true
                 table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
             end
         end
-        %%
-
-        % Schreiben in die Datenbank
+        %% Schreiben in die Datenbank
+ 
         % Info Tabellen
-        upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.info_sidtw',table_sidtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.info_euclidean',table_euclidean_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.info_dtw',table_dtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.info_dfd',table_dfd_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.info_lcss',table_lcss_info,segment_ids,type{1},conn)
 
         if evaluate_all == true 
             segment_ids = segment_ids(2:end,:); % segment_id = bahn_id löschen!
         end
-        
+
         % Abweichungen der Orientierungen 
         if evaluate_orientation == true && evaluate_velocity == false                                           
 
-            upload2postgresql('robotervermessung.auswertung.euclidean_orientation',table_euclidean_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.orientation_euclidean',table_euclidean_deviation,segment_ids,type{1},conn)
             disp('Euclidean Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.sidtw_orientation',table_sidtw_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.orientation_sidtw',table_sidtw_deviation,segment_ids,type{1},conn)
             disp('SIDTW Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.dtw_orientation',table_dtw_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.orientation_dtw',table_dtw_deviation,segment_ids,type{1},conn)
             disp('DTW Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.dfd_orientation',table_dfd_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.orientation_dfd',table_dfd_deviation,segment_ids,type{1},conn)
             disp('DFD Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.lcss_orientation',table_lcss_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.orientation_lcss',table_lcss_deviation,segment_ids,type{1},conn)
 
         else
             % Abweichungen der Positionen
-            upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.position_euclidean',table_euclidean_deviation,segment_ids,type{1},conn)
             disp('Euclidean Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.position_sidtw',table_sidtw_deviation,segment_ids,type{1},conn)
             disp('SIDTW Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.position_dtw',table_dtw_deviation,segment_ids,type{1},conn)
             disp('DTW Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.position_dfd',table_dfd_deviation,segment_ids,type{1},conn)
             disp('DFD Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.position_lcss',table_lcss_deviation,segment_ids,type{1},conn)
         end
 
         disp('Der Upload war erfolgreich!')
@@ -1182,16 +1167,16 @@ end
 
 function upload2postgresql(tablename,table,segment_ids,evaluation,conn)
 
-% % Abfrage ob der Eintrag der gesamten Bahn bereits existiert
-% if iscell(table)
-%     checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}));
-% else
-%     checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}), evaluation);
-% end
-% duplicates = fetch(conn, checkQuery);
-% entryExists = duplicates{1,1} > 0;
-% 
-% if entryExists == false
+% Abfrage ob der Eintrag der gesamten Bahn bereits existiert
+if iscell(table)
+    checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}));
+else
+    checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}), evaluation);
+end
+duplicates = fetch(conn, checkQuery);
+entryExists = duplicates{1,1} > 0;
+
+if entryExists == false
     
     % Daten der Segmente als eine einzige Tabelle schreiben
     if iscell(table)
@@ -1200,38 +1185,38 @@ function upload2postgresql(tablename,table,segment_ids,evaluation,conn)
 
     % Schreiben der gesamten Tabelle in die Datenbank
     sqlwrite(conn,tablename,table)
-% else
+else
     
-    % % Segmentweise prüfen wenn Eintrag bereits existiert
-    % for i = 1:1:size(segment_ids,1)-1
-    % 
-    %     % Abfrage ob der Eintrag eines Segmentes bereits existiert
-    %     if iscell(table)
-    %         checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s'", tablename, segment_ids{i,1});
-    %     else
-    %         checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
-    %     end
-    %     duplicates = fetch(conn, checkQuery);
-    %     entryExists = duplicates{1,1} > 0;
-    % 
-    %     % Lösche Daten falls diese bereits existieren
-    %     if entryExists == true
-    %         if iscell(table)
-    %             deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s'", tablename, segment_ids{i,1});
-    %         else
-    %             deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
-    %         end
-    %         execute(conn, deleteQuery);
-    %     end
-        % 
-        % if iscell(table)
-        %     % Schreiben/Überschreiben der Daten in die Datenbank
-        %     sqlwrite(conn,tablename,table{i,:})
-        % else          
-        %     sqlwrite(conn,tablename,table(i,:))
-        % end
-    % end
-% end
+    % Segmentweise prüfen wenn Eintrag bereits existiert
+    for i = 1:1:size(segment_ids,1)-1
+
+        % Abfrage ob der Eintrag eines Segmentes bereits existiert
+        if iscell(table)
+            checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s'", tablename, segment_ids{i,1});
+        else
+            checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
+        end
+        duplicates = fetch(conn, checkQuery);
+        entryExists = duplicates{1,1} > 0;
+
+        % Lösche Daten falls diese bereits existieren
+        if entryExists == true
+            if iscell(table)
+                deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s'", tablename, segment_ids{i,1});
+            else
+                deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
+            end
+            execute(conn, deleteQuery);
+        end
+
+        if iscell(table)
+            % Schreiben/Überschreiben der Daten in die Datenbank
+            sqlwrite(conn,tablename,table{i,:})
+        else          
+            sqlwrite(conn,tablename,table(i,:))
+        end
+    end
+end
 end
 
 

@@ -1,8 +1,8 @@
 function calibration(data_cal_ist,data_cal_soll)
 
-ist_time = str2double(data_cal_ist.timestamp);
+ist_time = double(string(data_cal_ist.timestamp));
 ist = [data_cal_ist.x_ist data_cal_ist.y_ist data_cal_ist.z_ist];
-soll_time = str2double(data_cal_soll.timestamp);
+soll_time = double(string(data_cal_soll.timestamp));
 soll_reference = [data_cal_soll.x_reached data_cal_soll.y_reached data_cal_soll.z_reached];
 
 diffs = diff(ist);

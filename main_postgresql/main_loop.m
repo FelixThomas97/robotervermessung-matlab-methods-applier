@@ -5,7 +5,7 @@ clear;
 tic;
 
 % bahn_id_ = '172104917';
-bahn_id_ = '171992752'; % Bahn mit wenigen Punkten
+% bahn_id_ = '171992752'; % Bahn mit wenigen Punkten
 % bahn_id_ = '171991250';
 % bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
 
@@ -34,7 +34,8 @@ evaluate_all = false;
 plots = false;
 
 % Upload in die Datenbank
-upload = false;
+upload = true;
+
 
 % % Verbindung mit PostgreSQL
 % datasource = "RobotervermessungMATLAB";
@@ -56,22 +57,36 @@ end
 
 clear datasource username password
 %% Schleife um alle Daten auszuwerten 
-tic;
 
 query = 'SELECT bahn_id FROM robotervermessung.bewegungsdaten.bahn_info';
 bahn_ids = fetch(conn, query);
-bahn_ids = str2double(table2array(bahn_ids));
-query = "SELECT bahn_id FROM robotervermessung.auswertung.sidtw_deviation WHERE evaluation = 'position'";
+bahn_ids = double(string(table2array(bahn_ids)));
+
+% Check ob Orientierung, Geschwindigkeit oder Position ausgewertet wird 
+if evaluate_orientation == true && evaluate_velocity == false 
+    query = "SELECT bahn_id FROM robotervermessung.auswertung.orientation_sidtw";
+end
+if evaluate_velocity == true && evaluate_orientation == false
+    query = "SELECT bahn_id FROM robotervermessung.auswertung.speed_sidtw";
+end
+if evaluate_orientation == false && evaluate_velocity == false
+    query = "SELECT bahn_id FROM robotervermessung.auswertung.position_sidtw";
+end
+
 existing_bahn_ids = fetch(conn,query);
-existing_bahn_ids = str2double(table2array(existing_bahn_ids));
+existing_bahn_ids = double(string(table2array(existing_bahn_ids)));
 existing_bahn_ids = unique(existing_bahn_ids);
 
-for k = 1:1:height(bahn_ids)
+% Berechnung und hochladen aller aufgezeichneten Bahnen
+for j = 33:1:height(bahn_ids)
 
-bahn_id_ = convertStringsToChars(string(bahn_ids(k)));
-if ~ismember(bahn_ids(k),existing_bahn_ids)
+bahn_id_ = convertStringsToChars(string(bahn_ids(j)));
+if ~ismember(bahn_ids(j),existing_bahn_ids)
 
+tic;
 %% Suche nach zugehörigem "Calibration Run"
+
+disp('Datei: '+string(j)+' Auswertung der Datei: ' + string(bahn_id_))
 
 query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE robotervermessung.bewegungsdaten.bahn_info.calibration_run = true';
 
@@ -79,8 +94,8 @@ query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE robo
 data_cal_info = fetch(conn, query_cal);
 
 % Finden des zugehörigen Calibration Runs anhand der kürzesten vergangen Zeit
-check_bahn_id = str2double(data_cal_info.bahn_id);
-diff_bahn_id = check_bahn_id - str2double(bahn_id_);
+check_bahn_id = double(string(data_cal_info.bahn_id));
+diff_bahn_id = check_bahn_id - double(string(bahn_id_));
 
 [~,min_diff_idx] = min(abs(diff_bahn_id));
 
@@ -273,7 +288,7 @@ segment_ids = fetch(conn,query);
 % % % IST-DATEN % % %
 % Extraktion der Indizes der Segmente 
 seg_id = split(data_ist.segment_id, '_');
-seg_id = str2double(seg_id(:,2));
+seg_id = double(string(seg_id(:,2)));
 idx_new_seg_ist = zeros(num_segments,1);
 
 % Suche nach den Indizes bei denen sich die Segmentnr. ändert
@@ -291,7 +306,7 @@ end
 
 % % % SOLL-DATEN % % %
 seg_id = split(data_soll.segment_id, '_');
-seg_id = str2double(seg_id(:,2));
+seg_id = double(string(seg_id(:,2)));
 idx_new_seg_soll = zeros(num_segments,1);
 
 k = 0;
@@ -375,11 +390,11 @@ else
 
     disp('Es wird die Position ausgewertet!')
 %%% Timestamp Auswertung
-    timestamps_ist = str2double(data_ist.timestamp);
-    timestamps_soll = str2double(data_soll.timestamp);
-
-    rel_timestamps_soll = (timestamps_soll - timestamps_ist(1))/1e9;
-    rel_timestamps_ist = (timestamps_ist - timestamps_ist(1))/1e9;
+    % timestamps_ist = str2double(data_ist.timestamp);
+    % timestamps_soll = str2double(data_soll.timestamp);
+    % 
+    % rel_timestamps_soll = (timestamps_soll - timestamps_ist(1))/1e9;
+    % rel_timestamps_ist = (timestamps_ist - timestamps_ist(1))/1e9;
 
     % Speichern der einzelnen Semgente in Tabelle
     segments_ist = array2table([{data_ist.segment_id(1)} data_ist.x_ist(1:idx_new_seg_ist(1)-1) data_ist.y_ist(1:idx_new_seg_ist(1)-1) data_ist.z_ist(1:idx_new_seg_ist(1)-1)], "VariableNames",{'segment_id','x_ist','y_ist','z_ist'});
@@ -1025,48 +1040,6 @@ toc;
 % vel_soll.timestamp = (vel_soll.timestamp - vel_soll.timestamp(1,1))/1e9;
 
 %% Ergebnisse in die Datenbank hochladen
-% 
-% upload = false; 
-% 
-% if upload == true
-% 
-%     upload = input("Eingabe 'upload' wenn die Ergebnisse hochgeladen werden soll. \n",'s');
-%     if strcmp(upload,'upload')
-%         disp('Upload erfolgt!')
-% 
-%         tablename = 'robotervermessung.auswertung.euclidean_info';
-%         sqlwrite(conn,tablename,table_euclidean_info)
-%         a = sqlread(conn,tablename);
-% 
-%     else
-%         disp('Upload fehlgeschlagen!')
-%     end
-% 
-% end
-
-% bahn_info = sqlread(conn,'robotervermessung.bewegungsdaten.bahn_info');
-% 
-% % 1. Möglichkeit
-% search = find(bahn_info.calibration_run == 1);
-% bahn_calibration = bahn_info(search,:); clear search 
-% 
-% % 2. Möglichkeit 
-% bahn_calibration_runs = bahn_info(bahn_info.calibration_run == 1, :);
-% %%
-% tablename = 'robotervermessung.auswertung.euclidean_info'
-% a = sqlread(conn,tablename)
-% %%
-% sqlquery = strcat("DROP TABLE ",tablename);
-% execute(conn,sqlquery)
-% %%
-% % table_euclidean_info.segment_id = convertStringsToChars(table_euclidean_info.segment_id)
-% %%
-% for i = 1:1:num_segments
-% 
-% 
-% 
-% end
-
 
 % Der Variablen das erste Segment hinzufügen
 first_id = table(bahn_id_+"_0",'VariableNames',"segment_id");
@@ -1092,17 +1065,6 @@ if upload == true
             table_dtw_info = addvars(table_dtw_info,repelem(type,height(table_dtw_info),1),'NewVariableNames','evaluation');
             table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
             table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
-            % Tabellen mit allen Abweichungen 
-            for i = 1:1:size(table_euclidean_deviation,1)-1
-                table_euclidean_deviation{i} = addvars(table_euclidean_deviation{i},repelem(type,height(table_euclidean_deviation{i}),1),'NewVariableNames','evaluation');
-                table_sidtw_deviation{i} = addvars(table_sidtw_deviation{i},repelem(type,height(table_sidtw_deviation{i}),1),'NewVariableNames','evaluation');
-                table_dtw_deviation{i} = addvars(table_dtw_deviation{i},repelem(type,height(table_dtw_deviation{i}),1),'NewVariableNames','evaluation');
-                table_dfd_deviation{i} = addvars(table_dfd_deviation{i},repelem(type,height(table_dfd_deviation{i}),1),'NewVariableNames','evaluation');
-                table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
-            end
-
-
-
 
         end
 
@@ -1115,13 +1077,14 @@ if upload == true
             table_dtw_info = addvars(table_dtw_info,repelem(type,height(table_dtw_info),1),'NewVariableNames','evaluation');
             table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
             table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
-            % Tabellen mit allen Abweichungen
+
+            % Tabellen mit allen Abweichungen (Spalten umbenennen)
             for i = 1:1:size(table_euclidean_deviation,1)-1
-                table_euclidean_deviation{i} = addvars(table_euclidean_deviation{i},repelem(type,height(table_euclidean_deviation{i}),1),'NewVariableNames','evaluation');
-                table_sidtw_deviation{i} = addvars(table_sidtw_deviation{i},repelem(type,height(table_sidtw_deviation{i}),1),'NewVariableNames','evaluation');
-                table_dtw_deviation{i} = addvars(table_dtw_deviation{i},repelem(type,height(table_dtw_deviation{i}),1),'NewVariableNames','evaluation');
-                table_dfd_deviation{i} = addvars(table_dfd_deviation{i},repelem(type,height(table_dfd_deviation{i}),1),'NewVariableNames','evaluation');
-                table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
+                table_euclidean_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','euclidean_deviation','points_order'};      
+                table_sidtw_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','sidtw_deviation','sidtw_soll_roll','sidtw_soll_pitch','sidtw_soll_yaw','sidtw_ist_roll','sidtw_ist_pitch','sidtw_ist_yaw','points_order'};                                        
+                table_dtw_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','dtw_deviation','dtw_soll_roll','dtw_soll_pitch','dtw_soll_yaw','dtw_ist_roll','dtw_ist_pitch','dtw_ist_yaw','points_order'};                                        
+                table_dfd_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','dfd_deviation','dfd_soll_roll','dfd_soll_pitch','dfd_soll_yaw','dfd_ist_roll','dfd_ist_pitch','dfd_ist_yaw','points_order'};                                        
+                table_lcss_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','lcss_deviation','lcss_soll_roll','lcss_soll_pitch','lcss_soll_yaw','lcss_ist_roll','lcss_ist_pitch','lcss_ist_yaw','points_order'};                                        
             end
         end
 
@@ -1143,38 +1106,54 @@ if upload == true
                 table_lcss_deviation{i} = addvars(table_lcss_deviation{i},repelem(type,height(table_lcss_deviation{i}),1),'NewVariableNames','evaluation');
             end
         end
-        %%
+        %% Schreiben in die Datenbank
+ 
+        % Info Tabellen
+        upload2postgresql('robotervermessung.auswertung.info_sidtw',table_sidtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.info_euclidean',table_euclidean_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.info_dtw',table_dtw_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.info_dfd',table_dfd_info,segment_ids,type{1},conn)
+        upload2postgresql('robotervermessung.auswertung.info_lcss',table_lcss_info,segment_ids,type{1},conn)
 
-        % Schreiben in die Datenbank
-        upload2postgresql('robotervermessung.auswertung.sidtw_info',table_sidtw_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.euclidean_info',table_euclidean_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.dtw_info',table_dtw_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.dfd_info',table_dfd_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.lcss_info',table_lcss_info,segment_ids,type{1},conn)
-%%
-        % !!!!! (dauert extrem lange) !!!!!
         if evaluate_all == true 
             segment_ids = segment_ids(2:end,:); % segment_id = bahn_id löschen!
         end
-        upload2postgresql('robotervermessung.auswertung.euclidean_deviation',table_euclidean_deviation,segment_ids,type{1},conn)
-        disp('Euclidean Deviation hochgeladen')
-        upload2postgresql('robotervermessung.auswertung.sidtw_deviation',table_sidtw_deviation,segment_ids,type{1},conn)
-        disp('SIDTW Deviation hochgeladen')
-        upload2postgresql('robotervermessung.auswertung.dtw_deviation',table_dtw_deviation,segment_ids,type{1},conn)
-        disp('DTW Deviation hochgeladen')
-        upload2postgresql('robotervermessung.auswertung.dfd_deviation',table_dfd_deviation,segment_ids,type{1},conn)
-        disp('DFD Deviation hochgeladen')
-        upload2postgresql('robotervermessung.auswertung.lcss_deviation',table_lcss_deviation,segment_ids,type{1},conn)
+ 
+        if evaluate_orientation == true && evaluate_velocity == false                                           
+            % Abweichungen der Orientierungen
+            upload2postgresql('robotervermessung.auswertung.orientation_euclidean',table_euclidean_deviation,segment_ids,type{1},conn)
+            disp('Euclidean Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.orientation_sidtw',table_sidtw_deviation,segment_ids,type{1},conn)
+            disp('SIDTW Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.orientation_dtw',table_dtw_deviation,segment_ids,type{1},conn)
+            disp('DTW Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.orientation_dfd',table_dfd_deviation,segment_ids,type{1},conn)
+            disp('DFD Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.orientation_lcss',table_lcss_deviation,segment_ids,type{1},conn)
 
-        disp('Der Upload war erfolgreich! Hochgeladene Datei: '+ string(bahn_id_))
+        else
+            % Abweichungen der Positionen
+            upload2postgresql('robotervermessung.auswertung.position_euclidean',table_euclidean_deviation,segment_ids,type{1},conn)
+            disp('Euclidean Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.position_sidtw',table_sidtw_deviation,segment_ids,type{1},conn)
+            disp('SIDTW Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.position_dtw',table_dtw_deviation,segment_ids,type{1},conn)
+            disp('DTW Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.position_dfd',table_dfd_deviation,segment_ids,type{1},conn)
+            disp('DFD Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.position_lcss',table_lcss_deviation,segment_ids,type{1},conn)
+        end
+
+        disp('Der Upload war erfolgreich!')
     else
         disp('Upload fehlgeschlagen!')
     end
     toc;
 % end
 else
-    disp('Datei: '+string(i)+" mit der Bahn-ID "+ string(bahn_id_+ " lag bereits vor!"))
+    disp('Datei: '+string(j)+" mit der Bahn-ID "+ string(bahn_id_+ " lag bereits vor!"))
 end
+clearvars -except conn evaluate_all evaluate_orientation evaluate_velocity evaluate_segmentwise plots upload existing_bahn_ids bahn_ids
 end
 
 
@@ -1183,7 +1162,11 @@ end
 function upload2postgresql(tablename,table,segment_ids,evaluation,conn)
 
 % Abfrage ob der Eintrag der gesamten Bahn bereits existiert
-checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}), evaluation);
+if iscell(table)
+    checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}));
+else
+    checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}), evaluation);
+end
 duplicates = fetch(conn, checkQuery);
 entryExists = duplicates{1,1} > 0;
 
@@ -1202,13 +1185,21 @@ else
     for i = 1:1:size(segment_ids,1)-1
 
         % Abfrage ob der Eintrag eines Segmentes bereits existiert
-        checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
+        if iscell(table)
+            checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s'", tablename, segment_ids{i,1});
+        else
+            checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
+        end
         duplicates = fetch(conn, checkQuery);
         entryExists = duplicates{1,1} > 0;
 
         % Lösche Daten falls diese bereits existieren
-        if entryExists == true 
-            deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
+        if entryExists == true
+            if iscell(table)
+                deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s'", tablename, segment_ids{i,1});
+            else
+                deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
+            end
             execute(conn, deleteQuery);
         end
 
