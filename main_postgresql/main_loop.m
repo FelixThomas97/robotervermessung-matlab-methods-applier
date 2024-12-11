@@ -34,7 +34,7 @@ evaluate_all = false;
 plots = false;
 
 % Upload in die Datenbank
-upload = true;
+upload = false;
 
 
 % % Verbindung mit PostgreSQL
@@ -78,7 +78,7 @@ existing_bahn_ids = double(string(table2array(existing_bahn_ids)));
 existing_bahn_ids = unique(existing_bahn_ids);
 
 % Berechnung und hochladen aller aufgezeichneten Bahnen
-for j = 33:1:height(bahn_ids)
+for j = 162:1:height(bahn_ids)
 
 bahn_id_ = convertStringsToChars(string(bahn_ids(j)));
 if ~ismember(bahn_ids(j),existing_bahn_ids)
@@ -427,24 +427,30 @@ else
 
 end
 
+% Löschen des Segment 0: 
+segments_soll = segments_soll(2:end,:);
+segments_ist = segments_ist(2:end,:);
+segments_trafo = segments_trafo(2:end,:);
+num_segments = num_segments -1;
+
 clear idx k seg_id query seg_trafo
 
 %% Berechnung der Metriken
 
 % Tabellen initialisieren
 table_sidtw_info = table();
-table_sidtw_deviation = cell(num_segments+1,1);
+table_sidtw_deviation = cell(num_segments,1);
 table_dtw_info = table();
-table_dtw_deviation = cell(num_segments+1,1);
+table_dtw_deviation = cell(num_segments,1);
 table_dfd_info = table();
-table_dfd_deviation = cell(num_segments+1,1);
+table_dfd_deviation = cell(num_segments,1);
 
 % Wenn Geschwindigkeit ausgewertet werden soll sind die 1D-Metriken nicht durchfürbar
 if size(segments_soll,2) > 2
     table_euclidean_info = table();
-    table_euclidean_deviation = cell(num_segments+1,1);
+    table_euclidean_deviation = cell(num_segments,1);
     table_lcss_info = table();
-    table_lcss_deviation = cell(num_segments+1,1);
+    table_lcss_deviation = cell(num_segments,1);
 end
 
 % Berechnung der Metriken für alle Segmente
@@ -459,9 +465,11 @@ for i = 1:1:num_segments
     elseif evaluate_velocity == false && evaluate_orientation == true 
         segment_trafo = [segments_trafo.roll_ist{i}, segments_trafo.pitch_ist{i},  segments_trafo.yaw_ist{i}];
         segment_soll = [segments_soll.roll_soll{i}, segments_soll.pitch_soll{i}, segments_soll.yaw_soll{i}];
-        % Winkel von 0-360° statt -180° bis 180°
-        segment_trafo = mod(segment_trafo,360);
-        segment_soll = mod(segment_soll,360);
+        % % Winkel von 0-360° statt -180° bis 180°
+        % segment_trafo = mod(segment_trafo,360);
+        % segment_soll = mod(segment_soll,360);
+        segment_trafo = abs(segment_trafo);
+        segment_soll = abs(segment_soll);
     end
 
     if size(segment_soll,2) > 1 % Wird nicht betrachtet wenn Geschwindigkeit ausgewertet wird 
@@ -483,33 +491,33 @@ for i = 1:1:num_segments
     if i == 1
         if size(segment_soll,2) > 1
             % Euklidischer Abstand
-            metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, data_ist.segment_id(1))
+            metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, segment_ids{i,:})
             table_euclidean_info = seg_euclidean_info;
             order_eucl_first = size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((1:1:order_eucl_first)','VariableNames',{'points_order'})];
             table_euclidean_deviation{1} = seg_euclidean_distances;
             % LCSS
-            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, data_ist.segment_id(1))
+            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:})
             table_lcss_info = seg_lcss_info;
             order_lcss_first = size(seg_lcss_distances,1);
             seg_lcss_distances = [seg_lcss_distances, table((1:1:order_lcss_first)','VariableNames',{'points_order'})];
             table_lcss_deviation{1} = seg_lcss_distances;
         end
         % SIDTW
-        metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, data_ist.segment_id(1))
+        metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:})
         table_sidtw_info = seg_sidtw_info;
         order_sidtw_first = size(seg_sidtw_distances,1);
         seg_sidtw_distances = [seg_sidtw_distances, table((1:1:order_sidtw_first)','VariableNames',{'points_order'})];
         table_sidtw_deviation{1} = seg_sidtw_distances;
 
         % DTW
-        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, data_ist.segment_id(1))
+        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:})
         table_dtw_info = seg_dtw_info;
         order_dtw_first = size(seg_dtw_distances,1);
         seg_dtw_distances = [seg_dtw_distances, table((1:1:order_dtw_first)','VariableNames',{'points_order'})];
         table_dtw_deviation{1} = seg_dtw_distances;
         % DFD
-        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, data_ist.segment_id(1))
+        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:})
         table_dfd_info = seg_dfd_info;
         order_dfd_first = size(seg_dfd_distances,1);
         seg_dfd_distances = [seg_dfd_distances, table((1:1:order_dfd_first)','VariableNames',{'points_order'})];
@@ -519,14 +527,14 @@ for i = 1:1:num_segments
     else
         if size(segment_soll,2) > 1
             % Euklidischer Abstand
-            metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, segment_ids{i-1,:})
+            metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, segment_ids{i,:})
             table_euclidean_info(i,:) = seg_euclidean_info;
             order_eucl_last = order_eucl_first + size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((order_eucl_first+1:1:order_eucl_last)','VariableNames',{'points_order'})];
             order_eucl_first = order_eucl_last;
             table_euclidean_deviation{i} = seg_euclidean_distances;
             % LCSS
-            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i-1,:})
+            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:})
             table_lcss_info(i,:) = seg_lcss_info;
             order_lcss_last = order_lcss_first + size(seg_lcss_distances,1);
             seg_lcss_distances = [seg_lcss_distances, table((order_lcss_first+1:1:order_lcss_last)','VariableNames',{'points_order'})];
@@ -534,21 +542,21 @@ for i = 1:1:num_segments
             table_lcss_deviation{i} = seg_lcss_distances;
         end
         % SIDTW
-        metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i-1,:})
+        metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:})
         table_sidtw_info(i,:) = seg_sidtw_info;
         order_sidtw_last = order_sidtw_first + size(seg_sidtw_distances,1);
         seg_sidtw_distances = [seg_sidtw_distances, table((order_sidtw_first+1:1:order_sidtw_last)','VariableNames',{'points_order'})];
         order_sidtw_first = order_sidtw_last;
         table_sidtw_deviation{i} = seg_sidtw_distances;
         % DTW
-        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i-1,:})
+        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:})
         table_dtw_info(i,:) = seg_dtw_info;
         order_dtw_last = order_dtw_first + size(seg_dtw_distances,1);
         seg_dtw_distances = [seg_dtw_distances, table((order_dtw_first+1:1:order_dtw_last)','VariableNames',{'points_order'})];
         order_dtw_first = order_dtw_last;
         table_dtw_deviation{i} = seg_dtw_distances;
         % DFD
-        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i-1,:})
+        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:})
         table_dfd_info(i,:) = seg_dfd_info;
         order_dfd_last = order_dfd_first + size(seg_dfd_distances,1);
         seg_dfd_distances = [seg_dfd_distances, table((order_dfd_first+1:1:order_dfd_last)','VariableNames',{'points_order'})];
@@ -961,8 +969,10 @@ if plots == true && evaluate_orientation == true && evaluate_velocity == false
     % Transformation aller Winkel 
     euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
     % Winkel zwischen 0 - 360°
-    euler_soll = mod(euler_soll,360);
-    euler_trans = mod(euler_trans,360);
+    % euler_soll = mod(euler_soll,360);
+    % euler_trans = mod(euler_trans,360);
+    euler_soll = abs(euler_soll);
+    euler_trans = abs(euler_trans);
 
     % Plot 
     figure('Color','white','Name','Eulerwinkel von 0° bis 360°')
@@ -1041,9 +1051,7 @@ toc;
 
 %% Ergebnisse in die Datenbank hochladen
 
-% Der Variablen das erste Segment hinzufügen
-first_id = table(bahn_id_+"_0",'VariableNames',"segment_id");
-segment_ids = [first_id; segment_ids];
+
 if evaluate_all == true
     first_id = table(string(bahn_id_),'VariableNames',"segment_id");
     segment_ids = [first_id; segment_ids];

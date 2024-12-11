@@ -4,7 +4,7 @@ clear;
 tic;
 
 % bahn_id_ = '172104917';
-% bahn_id_ = '171992752'; % Bahn mit wenigen Punkten
+bahn_id_ = '171992752'; % Bahn mit wenigen Punkten
 % bahn_id_ = '171991250';
 % bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
 
@@ -12,7 +12,7 @@ bahn_id_ = '172079653'; % ---> mit Orientierungsänderung (Hierzu wurden bereits
 % bahn_id_ ='172054053'; % Orientierungsänderung ohne Kalibrierungsdatei
 % bahn_id_ = '172079403'; % Kalibrierungsdatei selbst
 
-bahn_id_ = '171993079';
+% bahn_id_ = '171993079';
 
 %%% Standard: --> Berechnung der Metriken für Positionsabweichungen %%%
 
@@ -65,8 +65,8 @@ query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE robo
 data_cal_info = fetch(conn, query_cal);
 
 % Finden des zugehörigen Calibration Runs anhand der kürzesten vergangen Zeit
-check_bahn_id = str2double(data_cal_info.bahn_id);
-diff_bahn_id = check_bahn_id - str2double(bahn_id_);
+check_bahn_id = double(string(data_cal_info.bahn_id));
+diff_bahn_id = check_bahn_id - double(string(bahn_id_));
 
 [~,min_diff_idx] = min(abs(diff_bahn_id));
 
@@ -257,7 +257,7 @@ segment_ids = fetch(conn,query);
 % % % IST-DATEN % % %
 % Extraktion der Indizes der Segmente 
 seg_id = split(data_ist.segment_id, '_');
-seg_id = str2double(seg_id(:,2));
+seg_id = double(string(seg_id(:,2)));
 idx_new_seg_ist = zeros(num_segments,1);
 
 % Suche nach den Indizes bei denen sich die Segmentnr. ändert
@@ -275,7 +275,7 @@ end
 
 % % % SOLL-DATEN % % %
 seg_id = split(data_soll.segment_id, '_');
-seg_id = str2double(seg_id(:,2));
+seg_id = double(string(seg_id(:,2)));
 idx_new_seg_soll = zeros(num_segments,1);
 
 k = 0;
@@ -390,24 +390,30 @@ else
 
 end
 
+% Löschen des Segment 0: 
+segments_soll = segments_soll(2:end,:);
+segments_ist = segments_ist(2:end,:);
+segments_trafo = segments_trafo(2:end,:);
+num_segments = num_segments -1;
+
 clear idx k seg_id query seg_trafo
 
 %% Berechnung der Metriken
 
 % Tabellen initialisieren
 table_sidtw_info = table();
-table_sidtw_deviation = cell(num_segments+1,1);
+table_sidtw_deviation = cell(num_segments,1);
 table_dtw_info = table();
-table_dtw_deviation = cell(num_segments+1,1);
+table_dtw_deviation = cell(num_segments,1);
 table_dfd_info = table();
-table_dfd_deviation = cell(num_segments+1,1);
+table_dfd_deviation = cell(num_segments,1);
 
 % Wenn Geschwindigkeit ausgewertet werden soll sind die 1D-Metriken nicht durchfürbar
 if size(segments_soll,2) > 2
     table_euclidean_info = table();
-    table_euclidean_deviation = cell(num_segments+1,1);
+    table_euclidean_deviation = cell(num_segments,1);
     table_lcss_info = table();
-    table_lcss_deviation = cell(num_segments+1,1);
+    table_lcss_deviation = cell(num_segments,1);
 end
 
 % Berechnung der Metriken für alle Segmente
@@ -448,33 +454,33 @@ for i = 1:1:num_segments
     if i == 1
         if size(segment_soll,2) > 1
             % Euklidischer Abstand
-            metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, data_ist.segment_id(1))
+            metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, segment_ids{i,:})
             table_euclidean_info = seg_euclidean_info;
             order_eucl_first = size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((1:1:order_eucl_first)','VariableNames',{'points_order'})];
             table_euclidean_deviation{1} = seg_euclidean_distances;
             % LCSS
-            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, data_ist.segment_id(1))
+            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:})
             table_lcss_info = seg_lcss_info;
             order_lcss_first = size(seg_lcss_distances,1);
             seg_lcss_distances = [seg_lcss_distances, table((1:1:order_lcss_first)','VariableNames',{'points_order'})];
             table_lcss_deviation{1} = seg_lcss_distances;
         end
         % SIDTW
-        metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, data_ist.segment_id(1))
+        metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:})
         table_sidtw_info = seg_sidtw_info;
         order_sidtw_first = size(seg_sidtw_distances,1);
         seg_sidtw_distances = [seg_sidtw_distances, table((1:1:order_sidtw_first)','VariableNames',{'points_order'})];
         table_sidtw_deviation{1} = seg_sidtw_distances;
 
         % DTW
-        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, data_ist.segment_id(1))
+        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:})
         table_dtw_info = seg_dtw_info;
         order_dtw_first = size(seg_dtw_distances,1);
         seg_dtw_distances = [seg_dtw_distances, table((1:1:order_dtw_first)','VariableNames',{'points_order'})];
         table_dtw_deviation{1} = seg_dtw_distances;
         % DFD
-        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, data_ist.segment_id(1))
+        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:})
         table_dfd_info = seg_dfd_info;
         order_dfd_first = size(seg_dfd_distances,1);
         seg_dfd_distances = [seg_dfd_distances, table((1:1:order_dfd_first)','VariableNames',{'points_order'})];
@@ -484,14 +490,14 @@ for i = 1:1:num_segments
     else
         if size(segment_soll,2) > 1
             % Euklidischer Abstand
-            metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, segment_ids{i-1,:})
+            metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, segment_ids{i,:})
             table_euclidean_info(i,:) = seg_euclidean_info;
             order_eucl_last = order_eucl_first + size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((order_eucl_first+1:1:order_eucl_last)','VariableNames',{'points_order'})];
             order_eucl_first = order_eucl_last;
             table_euclidean_deviation{i} = seg_euclidean_distances;
             % LCSS
-            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i-1,:})
+            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:})
             table_lcss_info(i,:) = seg_lcss_info;
             order_lcss_last = order_lcss_first + size(seg_lcss_distances,1);
             seg_lcss_distances = [seg_lcss_distances, table((order_lcss_first+1:1:order_lcss_last)','VariableNames',{'points_order'})];
@@ -499,28 +505,26 @@ for i = 1:1:num_segments
             table_lcss_deviation{i} = seg_lcss_distances;
         end
         % SIDTW
-        metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i-1,:})
+        metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:})
         table_sidtw_info(i,:) = seg_sidtw_info;
         order_sidtw_last = order_sidtw_first + size(seg_sidtw_distances,1);
         seg_sidtw_distances = [seg_sidtw_distances, table((order_sidtw_first+1:1:order_sidtw_last)','VariableNames',{'points_order'})];
         order_sidtw_first = order_sidtw_last;
         table_sidtw_deviation{i} = seg_sidtw_distances;
         % DTW
-        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i-1,:})
+        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:})
         table_dtw_info(i,:) = seg_dtw_info;
         order_dtw_last = order_dtw_first + size(seg_dtw_distances,1);
         seg_dtw_distances = [seg_dtw_distances, table((order_dtw_first+1:1:order_dtw_last)','VariableNames',{'points_order'})];
         order_dtw_first = order_dtw_last;
         table_dtw_deviation{i} = seg_dtw_distances;
         % DFD
-        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i-1,:})
+        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:})
         table_dfd_info(i,:) = seg_dfd_info;
         order_dfd_last = order_dfd_first + size(seg_dfd_distances,1);
         seg_dfd_distances = [seg_dfd_distances, table((order_dfd_first+1:1:order_dfd_last)','VariableNames',{'points_order'})];
         order_dfd_first = order_dfd_last;
         table_dfd_deviation{i} = seg_dfd_distances;
-
-
     end
 end
 
@@ -1050,10 +1054,6 @@ toc;
 % 
 % end
 
-
-% Der Variablen das erste Segment hinzufügen
-first_id = table(bahn_id_+"_0",'VariableNames',"segment_id");
-segment_ids = [first_id; segment_ids];
 if evaluate_all == true
     first_id = table(string(bahn_id_),'VariableNames',"segment_id");
     segment_ids = [first_id; segment_ids];
