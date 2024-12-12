@@ -4,13 +4,13 @@
 
 clear;
 
-bahn_id_ ='171991191'; % Orientierungsänderung ohne Kalibrierungsdatei
+bahn_id_ ='1720791370'; % Orientierungsänderung ohne Kalibrierungsdatei
 
 % Plotten der Daten 
 plots = false;
 
 % Upload in die Datenbank
-upload_all = true;
+upload_all = false;
 upload_single = false;
 
 % Verbindung mit PostgreSQL
@@ -53,29 +53,48 @@ if upload_all
         bahn_id_ = convertStringsToChars(string(bahn_ids(i)));
 
         if ~ismember(bahn_ids(i),existing_bahn_ids)
-            tic;
-            query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE robotervermessung.bewegungsdaten.bahn_info.calibration_run = true';
-    
+            % SQL-Abfrage für Calibration Runs
+            query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE calibration_run = true';
+            
             % Abfrage ausführen und Ergebnisse abrufen
             data_cal_info = fetch(conn, query_cal);
             
-            % Finden des zugehörigen Calibration Runs anhand der kürzesten vergangen Zeit
-            check_bahn_id = str2double(data_cal_info.bahn_id);
-            diff_bahn_id = check_bahn_id - str2double(bahn_id_);
+            % Aktuelles Aufnahmedatum aus bahn_info holen
+            query_current = sprintf('SELECT recording_date FROM robotervermessung.bewegungsdaten.bahn_info WHERE bahn_id = ''%s''', bahn_id_);
+            current_date_info = fetch(conn, query_current);
+            current_datetime = datetime(current_date_info.recording_date, 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');    
+            % Initialisierung der Variablen für die beste Übereinstimmung
+            best_time_diff = Inf;
+            calibration_id = bahn_id_;  % Default: aktuelle Bahn-ID
+            found_calibration = false;
             
-            [~,min_diff_idx] = min(abs(diff_bahn_id));
-            
-            % Wenn eine Kalibierungsdatei vorliegt wird diese für die
-            % Koordinatentransformation genutzt, ansonsten die wird die gewählte Datei
-            % selbst verwendet. 
-            if diff_bahn_id(min_diff_idx) < 0
-                calibration_id = char(data_cal_info{min_diff_idx,'bahn_id'});
-                disp('Datei: '+string(i)+' Kalibrierungs-Datei vorhanden! ID der Messaufnahme: ' + string(calibration_id))
+            % Durchsuche alle Calibration Runs
+            for i = 1:height(data_cal_info)
+                cal_datetime = datetime(data_cal_info.recording_date(i), 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');
+                
+                % Prüfe ob gleicher Tag und Calibration Run zeitlich davor liegt
+                if dateshift(cal_datetime, 'start', 'day') == dateshift(current_datetime, 'start', 'day') && ...
+                   cal_datetime < current_datetime
+                    
+                    time_diff = seconds(current_datetime - cal_datetime);
+                    
+                    % Update beste Übereinstimmung wenn dieser Run näher liegt
+                    if time_diff < best_time_diff
+                        best_time_diff = time_diff;
+                        calibration_id = char(data_cal_info.bahn_id(i));
+                        found_calibration = true;
+                    end
+                end
+            end
+
+            % Ausgabe des Ergebnisses
+            if found_calibration
+                disp('Kalibrierungs-Datei vorhanden! ID der Messaufnahme: ' + string(calibration_id))
             else
                 calibration_id = bahn_id_;
-                disp('Datei: '+string(i)+' Zu dem ausgewählten Datensatz liegt keine Kalibirierungsdatei vor!')
+                disp('Zu dem ausgewählten Datensatz liegt keine Kalibrierungsdatei vom gleichen Tag vor!')
             end
-            
+                    
             % Extrahieren der Kalibrierungs-Daten für die Position
             tablename_cal = 'robotervermessung.bewegungsdaten.bahn_pose_ist';
             opts_cal = databaseImportOptions(conn,tablename_cal);
@@ -220,27 +239,46 @@ end
 %% Suche nach zugehörigem "Calibration Run"
 
 if upload_single && ~ismember(str2double(bahn_id_), existing_bahn_ids)
-
-    query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE robotervermessung.bewegungsdaten.bahn_info.calibration_run = true';
+    % SQL-Abfrage für Calibration Runs
+    query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE calibration_run = true';
     
     % Abfrage ausführen und Ergebnisse abrufen
     data_cal_info = fetch(conn, query_cal);
     
-    % Finden des zugehörigen Calibration Runs anhand der kürzesten vergangen Zeit
-    check_bahn_id = str2double(data_cal_info.bahn_id);
-    diff_bahn_id = check_bahn_id - str2double(bahn_id_);
+    % Aktuelles Aufnahmedatum aus bahn_info holen
+    query_current = sprintf('SELECT recording_date FROM robotervermessung.bewegungsdaten.bahn_info WHERE bahn_id = ''%s''', bahn_id_);
+    current_date_info = fetch(conn, query_current);
+    current_datetime = datetime(current_date_info.recording_date, 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');    
+    % Initialisierung der Variablen für die beste Übereinstimmung
+    best_time_diff = Inf;
+    calibration_id = bahn_id_;  % Default: aktuelle Bahn-ID
+    found_calibration = false;
     
-    [~,min_diff_idx] = min(abs(diff_bahn_id));
+    % Durchsuche alle Calibration Runs
+    for i = 1:height(data_cal_info)
+        cal_datetime = datetime(data_cal_info.recording_date(i), 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');
+        
+        % Prüfe ob gleicher Tag und Calibration Run zeitlich davor liegt
+        if dateshift(cal_datetime, 'start', 'day') == dateshift(current_datetime, 'start', 'day') && ...
+           cal_datetime < current_datetime
+            
+            time_diff = seconds(current_datetime - cal_datetime);
+            
+            % Update beste Übereinstimmung wenn dieser Run näher liegt
+            if time_diff < best_time_diff
+                best_time_diff = time_diff;
+                calibration_id = char(data_cal_info.bahn_id(i));
+                found_calibration = true;
+            end
+        end
+    end
     
-    % Wenn eine Kalibierungsdatei vorliegt wird diese für die
-    % Koordinatentransformation genutzt, ansonsten die wird die gewählte Datei
-    % selbst verwendet. 
-    if diff_bahn_id(min_diff_idx) < 0
-        calibration_id = char(data_cal_info{min_diff_idx,'bahn_id'});
+    % Ausgabe des Ergebnisses
+    if found_calibration
         disp('Kalibrierungs-Datei vorhanden! ID der Messaufnahme: ' + string(calibration_id))
     else
         calibration_id = bahn_id_;
-        disp('Zu dem ausgewählten Datensatz liegt keine Kalibirierungsdatei vor!')
+        disp('Zu dem ausgewählten Datensatz liegt keine Kalibrierungsdatei vom gleichen Tag vor!')
     end
     
     % Extrahieren der Kalibrierungs-Daten für die Position
