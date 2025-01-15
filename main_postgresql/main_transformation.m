@@ -40,7 +40,7 @@ bahn_ids = fetch(conn, query);
 bahn_ids = str2double(table2array(bahn_ids));
 query = 'SELECT bahn_id FROM robotervermessung.bewegungsdaten.bahn_pose_trans';
 existing_bahn_ids = fetch(conn,query);
-existing_bahn_ids = str2double(table2array(existing_bahn_ids));
+existing_bahn_ids = double(string(table2array(existing_bahn_ids)));
 existing_bahn_ids = unique(existing_bahn_ids);
 
 %%

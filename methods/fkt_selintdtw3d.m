@@ -208,10 +208,14 @@ if size(result,2) == 6         % Orientierungen und Positionen
 elseif size(result,2) == 2     % Geschwindigkeiten 
     dtw_X = result(:,1);
     dtw_Y = result(:,2);
+elseif size(result,2) == 4 % Geschwindigkeiten mit Zeitstempel
+    dtw_X = result(:,[1 2]);
+    dtw_Y = result(:, [3 4]);
 elseif size(result,2) == 8     % Orientierungen und Positionen mit Zeitstempel
     dtw_X = result(:,[1 2 3 4]);
     dtw_Y = result(:, [5 6 7 8]);
 end
+
 
 % Distanzen zwischen den interpolierten Bahnen
 distances = zeros(length(dtw_X),1);
