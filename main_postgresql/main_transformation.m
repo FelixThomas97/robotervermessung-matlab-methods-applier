@@ -68,25 +68,29 @@ if upload_all
             calibration_id = bahn_id_;  % Default: aktuelle Bahn-ID
             found_calibration = false;
             
-            % Durchsuche alle Calibration Runs
-            for i = 1:height(data_cal_info)
-                cal_datetime = datetime(data_cal_info.recording_date(i), 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');
-                
-                % Prüfe ob gleicher Tag und Calibration Run zeitlich davor liegt
-                if dateshift(cal_datetime, 'start', 'day') == dateshift(current_datetime, 'start', 'day') && ...
-                   cal_datetime < current_datetime
+            if any(strcmp(data_cal_info.bahn_id, bahn_id_))
+                disp('Die aktuelle Bahn ist bereits eine Kalibrierungsbahn!')
+            else
+                % Durchsuche alle Calibration Runs
+                for i = 1:height(data_cal_info)
+                    cal_datetime = datetime(data_cal_info.recording_date(i), 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');
                     
-                    time_diff = seconds(current_datetime - cal_datetime);
-                    
-                    % Update beste Übereinstimmung wenn dieser Run näher liegt
-                    if time_diff < best_time_diff
-                        best_time_diff = time_diff;
-                        calibration_id = char(data_cal_info.bahn_id(i));
-                        found_calibration = true;
+                    % Prüfe ob gleicher Tag und Calibration Run zeitlich davor liegt
+                    if dateshift(cal_datetime, 'start', 'day') == dateshift(current_datetime, 'start', 'day') && ...
+                       cal_datetime < current_datetime
+                        
+                        time_diff = seconds(current_datetime - cal_datetime);
+                        
+                        % Update beste Übereinstimmung wenn dieser Run näher liegt
+                        if time_diff < best_time_diff
+                            best_time_diff = time_diff;
+                            calibration_id = char(data_cal_info.bahn_id(i));
+                            found_calibration = true;
+                        end
                     end
                 end
             end
-
+        
             % Ausgabe des Ergebnisses
             if found_calibration
                 disp('Kalibrierungs-Datei vorhanden! ID der Messaufnahme: ' + string(calibration_id))
@@ -254,25 +258,29 @@ if upload_single && ~ismember(str2double(bahn_id_), existing_bahn_ids)
     calibration_id = bahn_id_;  % Default: aktuelle Bahn-ID
     found_calibration = false;
     
-    % Durchsuche alle Calibration Runs
-    for i = 1:height(data_cal_info)
-        cal_datetime = datetime(data_cal_info.recording_date(i), 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');
-        
-        % Prüfe ob gleicher Tag und Calibration Run zeitlich davor liegt
-        if dateshift(cal_datetime, 'start', 'day') == dateshift(current_datetime, 'start', 'day') && ...
-           cal_datetime < current_datetime
+    if any(strcmp(data_cal_info.bahn_id, bahn_id_))
+        disp('Die aktuelle Bahn ist bereits eine Kalibrierungsbahn!')
+    else
+        % Durchsuche alle Calibration Runs
+        for i = 1:height(data_cal_info)
+            cal_datetime = datetime(data_cal_info.recording_date(i), 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');
             
-            time_diff = seconds(current_datetime - cal_datetime);
-            
-            % Update beste Übereinstimmung wenn dieser Run näher liegt
-            if time_diff < best_time_diff
-                best_time_diff = time_diff;
-                calibration_id = char(data_cal_info.bahn_id(i));
-                found_calibration = true;
+            % Prüfe ob gleicher Tag und Calibration Run zeitlich davor liegt
+            if dateshift(cal_datetime, 'start', 'day') == dateshift(current_datetime, 'start', 'day') && ...
+               cal_datetime < current_datetime
+                
+                time_diff = seconds(current_datetime - cal_datetime);
+                
+                % Update beste Übereinstimmung wenn dieser Run näher liegt
+                if time_diff < best_time_diff
+                    best_time_diff = time_diff;
+                    calibration_id = char(data_cal_info.bahn_id(i));
+                    found_calibration = true;
+                end
             end
         end
     end
-    
+
     % Ausgabe des Ergebnisses
     if found_calibration
         disp('Kalibrierungs-Datei vorhanden! ID der Messaufnahme: ' + string(calibration_id))
