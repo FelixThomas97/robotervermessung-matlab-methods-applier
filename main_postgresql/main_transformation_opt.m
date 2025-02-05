@@ -4,7 +4,7 @@
 clear;
 
 %bahn_id_ = '1738682877';
-bahn_id_ = '1721049183';% Orientierungsänderung ohne Kalibrierungsdatei
+bahn_id_ = '1721048142';% Orientierungsänderung ohne Kalibrierungsdatei
 plots = true;              % Plotten der Daten 
 upload_all = false;        % Upload aller Bahnen
 upload_single = false;     % Nur eine einzelne Bahn
@@ -82,13 +82,13 @@ for bahn_id = bahn_ids_to_process'
         % Extrahieren der Kalibrierungs-Daten für die Position
         tablename_cal = ['robotervermessung.' schema '.bahn_pose_ist'];
         opts_cal = databaseImportOptions(conn,tablename_cal);
-        opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
+        opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == bahn_id_;
         data_cal_ist= sqlread(conn,tablename_cal,opts_cal);
         data_cal_ist = sortrows(data_cal_ist,'timestamp');
         
         tablename_cal = ['robotervermessung.' schema '.bahn_events'];
         opts_cal = databaseImportOptions(conn,tablename_cal);
-        opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
+        opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == bahn_id_;
         data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
         data_cal_soll = sortrows(data_cal_soll,'timestamp');
         
@@ -98,7 +98,7 @@ for bahn_id = bahn_ids_to_process'
         % Extrahieren der Kalibrierungs-Daten für die Orientierung
         tablename_cal = ['robotervermessung.' schema '.bahn_orientation_soll'];
         opts_cal = databaseImportOptions(conn,tablename_cal);
-        opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
+        opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == bahn_id_;
         data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
         data_cal_soll = sortrows(data_cal_soll,'timestamp');
         
@@ -131,6 +131,8 @@ for bahn_id = bahn_ids_to_process'
         q_ist = [q_ist(:,4), q_ist(:,3), q_ist(:,2), q_ist(:,1)];
         euler_ist = quat2eul(q_ist,"ZYX");
         euler_ist = rad2deg(euler_ist);
+
+        %transform_tool_orientation(data_ist,data_orientation_soll)
 
         % Auslesen der gesamten Soll-Daten der Position
         query = ['SELECT * FROM robotervermessung.' schema '.bahn_position_soll ' ...
@@ -274,9 +276,9 @@ function plotResults(data_ist,data_ist_trafo, data_orientation_soll, position_so
     % Plot Winkel
     figure('Color','white','Name','Eulerwinkel von 0° bis 360°')
     hold on 
-    plot(timestamps_soll,euler_soll(:,1),Color=c1,LineWidth=1.5)
-    plot(timestamps_soll,euler_soll(:,2),Color=c2,LineWidth=1.5)
-    plot(timestamps_soll,euler_soll(:,3),Color=c4,LineWidth=1.5)
+    plot(timestamps_soll,euler_soll(:,1),Color=c1,LineWidth=0.5)
+    plot(timestamps_soll,euler_soll(:,2),Color=c2,LineWidth=0.5)
+    plot(timestamps_soll,euler_soll(:,3),Color=c4,LineWidth=0.5)
     plot(timestamps_ist,euler_trans(:,1),Color=c1, LineWidth=3.5)
     plot(timestamps_ist,euler_trans(:,2),Color=c2, LineWidth=3.5)
     plot(timestamps_ist,euler_trans(:,3),Color=c4, LineWidth=3.5)

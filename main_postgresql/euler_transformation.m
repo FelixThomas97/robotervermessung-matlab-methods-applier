@@ -14,7 +14,8 @@ if nargin == 2
 
     
     q_ist = table2array(data_ist(:,8:11));
-    q_ist = [q_ist(:,4), q_ist(:,3), q_ist(:,2), q_ist(:,1)];
+    q_ist = [q_ist(:,4), q_ist(:,2), q_ist(:,1), q_ist(:,3)]; %beste bis jetzt
+    %q_ist = [q_ist(:,4), q_ist(:,3), q_ist(:,2), q_ist(:,1)]; % original
     euler_ist = quat2eul(q_ist,"ZYX");
     euler_ist = rad2deg(euler_ist);
     
@@ -29,7 +30,8 @@ if nargin == 2
                    mean(R_soll(3,1,:)),mean(R_soll(3,2,:)),mean(R_soll(3,3,:));];
 
     % Gemittelte relative Rotationsmatrix
-    R_rel = R_soll_mean * R_ist_mean; 
+    R_rel = R_soll_mean * R_ist_mean;
+
     
     % Laden in Workspace
     assignin("base","trafo_euler", R_rel)
