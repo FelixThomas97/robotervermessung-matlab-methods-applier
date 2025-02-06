@@ -1,5 +1,6 @@
 % Löschen des Workspace
-clear; tic;
+clear;
+tic;
 % Verbindung mit der Datenbank
 conn = connecting_to_postgres;
 
@@ -58,18 +59,18 @@ all_bahn_id_array = all_events_filtered.bahn_id;
 % Zählen der Häufigkeit jedes Eintrags
 counts = accumarray(indices, 1); 
 all_bahn_ids = table(uniqueEntries, counts, 'VariableNames', {'Bahn_ID', 'Häufigkeit'});
-num_bahnen = sum(counts);
+num_events = sum(counts);
 
 clear all_bahn_id_array uniqueEntries indices isValidLength direction distance ndirection quaternion_diff query
-clear counts
+clear counts all_events
 
 % Initialisieren des Merkmal-Arrays aller Bahnen
-all_ident = zeros(8,num_bahnen);
+all_ident = zeros(8,num_events);
 
-dir = zeros(num_bahnen,3);
-dist = zeros(num_bahnen,1);
-ndir = zeros(num_bahnen,3);
-quat = zeros(num_bahnen,4);
+dir = zeros(num_events,3);
+dist = zeros(num_events,1);
+ndir = zeros(num_events,3);
+quat = zeros(num_events,4);
 
 % Alle Positionen und Orientierungen
 all_positions = table2array(all_events_filtered(:,5:7));
@@ -219,8 +220,7 @@ for i = 1:size(aehnliche_bahnen,1)
     seqs{i} = [similarity(sequences_longest_idx1(i),3),similarity(sequences_longest_idx2(i),3)];
 end
 
-
-
+% Id's und Segmentnummern in einer Tabelle zusammenfassen
 aehnliche_seqs = table(aehnliche_bahnen,seqs,'VariableNames', {'bahn_id', 'bahn_abschnitte'});
 
 % Ausgabe der Bahn-Id's und Indizes aus similarity-Vektor
@@ -232,11 +232,11 @@ for i = 1:length(sequences_longest)
 end
 
 clear c d df sz_ident i j k last_idx start_idx end_idx comp
-clear dir1 dir2 len1 len2 direction_deviation length_deviation
+clear dir1 dir2 len1 len2 direction_deviation length_deviation differential
 
 %% Plotten aller Bahnen 
 
-plot = 1;
+plot = 0;
 
 if plot
 
@@ -266,80 +266,111 @@ toc;
 tic;
 
 if ~isempty(aehnliche_bahnen)
-        
-    BAHNVERGLEICH  = table('Size',[size(aehnliche_bahnen,1) 11],'VariableTypes',{'string', 'string', 'string', 'string','double','double','double','double','double','double','double'}, ...
-        'VariableNames',{'bahn_id','robot_model','source_ist','source_soll','num_equal_points','tcp_speed','max_abweichung_soll','avg_abweichung_soll','euclidean','sidtw','equal_orientation'});
 
-    query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_position_soll WHERE bahn_id = '%s'",bahn_id);
-    bahn_points = fetch(conn,query);
+    % Tabelle initialisieren
+    BAHNVERGLEICH  = table('Size',[size(aehnliche_bahnen,1) 12],'VariableTypes',{'string', 'string', 'string', 'string','double','double','double','double','double','double','double','double'}, ...
+        'VariableNames',{'bahn_id','robot_model','source_ist','source_soll','num_equal_points','segments','tcp_speed','max_abweichung_soll','avg_abweichung_soll','euclidean','sidtw','equal_orientation'});
+
+    % Alle Soll-Positionsdaten der Hauptbahn auf einmal abrufen
+    query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_position_soll WHERE bahn_id = '%s'", bahn_id);
+    bahn_points = fetch(conn, query);
     bahn_points = table2array(bahn_points(:,5:7));
 
-% Abfrage der relevanten Informationen der ähnlichen Bahnen 
-for i = 1:1:size(aehnliche_bahnen,1)
-    % Geschwindigkeit
-    query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_twist_ist WHERE bahn_id = '%s'",aehnliche_bahnen(i)); 
-    act_bahn = fetch(conn,query);
-    max_speed = max(act_bahn.tcp_speed_ist);
-    % Roboter-Modell und Quelle der Daten
-    query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE bahn_id = '%s'",aehnliche_bahnen(i)); 
-    act_bahn = fetch(conn,query);
-    robot_model = act_bahn.robot_model;
-    source_ist = act_bahn.source_data_ist;
-    source_soll = act_bahn.source_data_soll;
-    % Abweichungen (euklidischer Abstand) der Soll-Positionsdaten beider Bahnen
-    query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_position_soll WHERE bahn_id = '%s'",aehnliche_bahnen(i));
-    act_bahn = fetch(conn,query);
-    points = table2array(act_bahn(:,5:7));
-    [~,dists,~] = distance2curve(points,bahn_points,'linear');
-    max_dist = max(dists);
-    mean_dist = mean(dists);
+    % Eine Abfrage für alle ähnlichen Bahnen (schneller als Schleife für einzelne Bahnen)
+    bahn_ids_str = strjoin(string(aehnliche_bahnen), "','");
+    query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_twist_ist WHERE bahn_id IN ('%s')", bahn_ids_str);
+    speed_data = fetch(conn, query);
 
-    % Anzahl gleicher Punkte hinzufügen
-    equal_points = sequences_all_lengths(sequences_longest(i))+1;
+    query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE bahn_id IN ('%s')", bahn_ids_str);
+    info_data = fetch(conn, query);
 
-    % % TO-DO: Auswertung SIDTW und EUCLIDEAN hinzufügen
+    query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_position_soll WHERE bahn_id IN ('%s')", bahn_ids_str);
+    position_data = fetch(conn, query);
+    position_data = sortrows(position_data,"timestamp",'ascend');
 
-    % % Anhängen der Daten in die Tabelle 
-    BAHNVERGLEICH{i,:} = [aehnliche_bahnen(i),robot_model,source_ist,source_soll,equal_points,max_speed,max_dist,mean_dist,0,0,0];
+    % Werte in Schleife zuweisen
+    for i = 1:size(aehnliche_bahnen,1)
+        % Filtere die passenden Daten aus den geladenen Tabellen
+        act_speed = speed_data(strcmp(speed_data.bahn_id, aehnliche_bahnen(i)), :);
+        max_speed = max(act_speed.tcp_speed_ist);
+
+        act_info = info_data(strcmp(info_data.bahn_id, aehnliche_bahnen(i)), :);
+        robot_model = act_info.robot_model;
+        source_ist = act_info.source_data_ist;
+        source_soll = act_info.source_data_soll;
+
+        act_position = position_data(strcmp(position_data.bahn_id, aehnliche_bahnen(i)), :);
+        points = table2array(act_position(:,5:7));
+        [~, dists, ~] = distance2curve(points, bahn_points, 'linear');
+        max_dist = max(dists);
+        mean_dist = mean(dists);
+
+        % Anzahl gleicher Punkte
+        equal_points = sequences_all_lengths(sequences_longest(i)) + 1;
+
+        % Daten in die Tabelle einfügen
+        BAHNVERGLEICH{i, :} = [aehnliche_bahnen(i), robot_model, source_ist, source_soll, equal_points, 0, max_speed, max_dist, mean_dist, 0, 0, 0];
+        % BAHNVERGLEICH.segments(i) = aehnliche_seqs{i,2};
+    end
+    % Ähnliche Segmente hinzufügen
+    BAHNVERGLEICH.segments = cell(height(BAHNVERGLEICH),1);
+    BAHNVERGLEICH.segments = aehnliche_seqs{:,2};
+else
+    fprintf("Keine ähnlichen Bahnen gefunden!")
 end
-end
+
 
 
 clear source_ist source_soll robot_model max_speed dists max_dist mean_dist act_bahn act_seqs points equal_points
-clear i query 
+clear i query seqs
+
+clear act_speed act_position act_info info_data  position_data speed_data
+ 
 
 toc;
 %% Überprüfen ob die Orientierungen übereinstimmen
 
-quat = 0;
+quat = 1;
 if quat
 % Tabellenspalte zur Cell-Array umformatieren
 BAHNVERGLEICH.equal_orientation = cell(height(BAHNVERGLEICH), 1);
 
 for i = 1:size(BAHNVERGLEICH,1)
 
-% Orientierungsdaten extrahieren und Differencen mit Identifizierungsvektor vergleichen
-query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_events WHERE bahn_id = '%s'",aehnliche_bahnen(i));
-act_bahn = fetch(conn,query);
-act_quat = table2array(act_bahn(:,8:11));
-act_quat_diff = diff(act_quat)';
+    % Orientierungsdaten extrahieren und Differencen mit Identifizierungsvektor vergleichen
+    query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_events WHERE bahn_id = '%s'",aehnliche_bahnen(i));
+    act_bahn = fetch(conn,query);
+    act_seqs = act_bahn(aehnliche_seqs.bahn_abschnitte{i}(1):aehnliche_seqs.bahn_abschnitte{i}(end)+1,:);
+    act_quat = table2array(act_seqs(:,8:11));
+    act_quat_diff = diff(act_quat)';
+    
+    quat_compare = [];
 
-quat_diff = bahn_ident(5:8,:)-act_quat_diff; 
-quat_compare = [];
-
-% Schreibt Einsen in den Vektor wenn die Orientierung gleich/ähnlich ist
-for j = 1:size(quat_diff,2)
-    if norm(quat_diff(:,j)) <= 0.05 % Grenzwert für die Orientierungsabweichung
-        quat_compare(end+1) = 1;
+    if size(bahn_ident,2) == size(act_quat_diff)
+        quat_diff = bahn_ident(5:8,:)-act_quat_diff;
     else
-        quat_compare(end+1) = 0;
+        quat_diff = 100;
     end
-end
+
+    if quat_diff ~= 100
+        % Schreibt Einsen in den Vektor wenn die Orientierung gleich/ähnlich ist
+        for j = 1:size(quat_diff,2)
+            if norm(quat_diff(:,j)) <= 0.05 % Grenzwert für die Orientierungsabweichung
+                quat_compare(end+1) = 1;
+            else
+                quat_compare(end+1) = 0;
+            end
+        end
+    end
+
+    % TODO: Orientierung von Bahnen mit weniger Punkten als die gesuchte
+    % Bahn ebenfalls vergleichen können. --> Struktur überlegen!
 
 BAHNVERGLEICH.equal_orientation{i} = quat_compare';
 end
 
 end
+
 %% TO-DO
 
 % % IN TABELLE EINTRAGEN
@@ -379,4 +410,7 @@ end
 % aus der Datenbank in die entsprechende Anzahl der Bahnabschnitte
 % unterteilt werde. ---> die Suche nach ähnlichen Bahnen muss aufgrundlage
 % der Bahn Id + der Segment ID verlaufen unter Beachtung der Reiehenfolge!
+% %%
+% clear;
+% 
 
