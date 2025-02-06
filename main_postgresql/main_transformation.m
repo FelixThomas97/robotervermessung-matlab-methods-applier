@@ -16,7 +16,9 @@ plots = true;
 
 % Upload in die Datenbank
 upload_all = false;
-upload_single = 1;
+upload_single = true;
+is_pick_and_place = false;  % NEU: Flag für Pick-and-Place Aufgaben
+
 
 % Verbindung mit PostgreSQL
 datasource = "RobotervermessungMATLAB";
@@ -34,8 +36,6 @@ end
 clear datasource username password
 
 
-% query = 'SELECT bahn_id FROM robotervermessung.bewegungsdaten.bahn_pose_trans WHERE bahn_id';
-
 %% Alle Bahn-Id's erhalten 
 
 tic;
@@ -43,10 +43,9 @@ tic;
 query = 'SELECT bahn_id FROM robotervermessung.bewegungsdaten.bahn_info';
 bahn_ids = fetch(conn, query);
 bahn_ids = str2double(table2array(bahn_ids));
-query = 'SELECT bahn_id FROM robotervermessung.bewegungsdaten.bahn_pose_trans';
-existing_bahn_ids = fetch(conn,query);
-existing_bahn_ids = double(string(table2array(existing_bahn_ids)));
-existing_bahn_ids = unique(existing_bahn_ids);
+query = 'SELECT DISTINCT bahn_id FROM robotervermessung.bewegungsdaten.bahn_pose_trans';
+existing_bahn_ids = fetch(conn, query);
+existing_bahn_ids = str2double(table2array(existing_bahn_ids));
 
 %%
 
@@ -428,13 +427,3 @@ elseif upload_single == true && ismember(str2double(bahn_id_), existing_bahn_ids
     disp("Datei mit der Bahn-ID "+ string(bahn_id_+ " lag bereits vor!"))
 end
 toc;
-
-%%
-% checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
-% duplicates = fetch(conn, checkQuery);
-% entryExists = duplicates{1,1} > 0;
-
-% % %% Löschen eines tables
-% tablename = 'robotervermessung.bewegungsdaten.bahn_pose_trans';
-% sqlquery = strcat("DROP TABLE ",tablename);
-% % execute(conn,sqlquery)

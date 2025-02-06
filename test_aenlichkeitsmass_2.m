@@ -215,7 +215,9 @@ aehnliche_bahnen_idx = similarity(sequences_longest_idx1,2);
 aehnliche_bahnen = table2array(all_bahn_ids(aehnliche_bahnen_idx,1));
 
 % Ausgabe der Bahn-Id's und Indizes aus similarity-Vektor
+
 fprintf('Die größte Anzahl gleicher aufeinander folgender Bahnabschnitte beträgt %d.\n', sequences_max_length);
+
 for i = 1:length(sequences_longest)
     fprintf('Bahn_ID %s : Start bei %d, Ende bei %d.\n', ...
         aehnliche_bahnen(i,1), start_idx(sequences_longest(i)), end_idx(sequences_longest(i)));
@@ -242,7 +244,7 @@ for i = 1:1:length(aehnliche_bahnen)
     pos = table2array(act_bahn(:,5:7));
     plot3(pos(:,1),pos(:,2),pos(:,3),'Marker','o')
     title(aehnliche_bahnen(i))
-    keyboard; % Code anhalten
+    % keyboard; % Code anhalten
 end
 
 end
@@ -288,9 +290,9 @@ for i = 1:1:size(aehnliche_bahnen,1)
 
     % % Anhängen der Daten in die Tabelle 
     BAHNVERGLEICH{end+1,:} = [aehnliche_bahnen(i),robot_model,source_ist,source_soll,equal_points,max_speed,max_dist,mean_dist,0,0,0];
-end
-end
 
+end
+end
 
 clear source_ist source_soll robot_model max_speed dists max_dist mean_dist act_bahn points equal_points
 clear i query 
@@ -305,12 +307,14 @@ for i = 1:size(BAHNVERGLEICH,1)
 
 % Orientierungsdaten extrahieren und Differencen mit Identifizierungsvektor vergleichen
 query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_events WHERE bahn_id = '%s'",aehnliche_bahnen(i));
+
 act_bahn = fetch(conn,query);
 act_quat = table2array(act_bahn(:,8:11));
 act_quat_diff = diff(act_quat)';
 
 quat_diff = bahn_ident(5:8,:)-act_quat_diff; 
 quat_compare = [];
+
 
 % Schreibt Einsen in den Vektor wenn die Orientierung gleich/ähnlich ist
 for j = 1:size(quat_diff,2)
@@ -321,11 +325,13 @@ for j = 1:size(quat_diff,2)
     end
 end
 
+
 BAHNVERGLEICH.equal_orientation{i} = quat_compare';
 end
 
 
 %% TO-DO
+
 
 % % IN TABELLE EINTRAGEN
 
@@ -336,8 +342,6 @@ end
 % POSITIONEN MANUELL EINGEBEN KÖNNEN
 
 % Ähnlichkeit auch für Teilabschnitte anderer Bahnen? z.b. wenn nur 1-2 Bahnabschnitte übereinstimmen
-
-
 
 % Informationen über die gleichen Bahnen abrufen: 
 % euclidean_mean, sidtw_mean, Geschwindigkeit, robot_model, source_data_soll
@@ -357,4 +361,3 @@ end
 % !!!!!! WENN DATEN MIT GLEICHEN TIMESTAMP DOPPELT VORLIEGEN MÜSSEN DIE
 % DOPPPELTEN DATEN GELÖSCHT WERDEN !!!!!!!
 % ---> GROßES PROBLEM DA NICHT ALLE SEQUENZEN ÜBERLAPPEN 
-
