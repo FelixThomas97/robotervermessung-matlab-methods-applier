@@ -214,6 +214,13 @@ sequences_longest_idx2 =  end_idx(sequences_longest);
 aehnliche_bahnen_idx = similarity(sequences_longest_idx1,2);
 aehnliche_bahnen = table2array(all_bahn_ids(aehnliche_bahnen_idx,1));
 
+seqs = cell(size(aehnliche_bahnen,1),1);
+for i = 1:size(aehnliche_bahnen,1)
+    seqs{i} = [similarity(sequences_longest_idx1(i),3),similarity(sequences_longest_idx2(i),3)];
+end
+
+a = table(aehnliche_bahnen,seqs,'VariableNames', {'bahn_id', 'bahn_abschnitte'});
+
 % Ausgabe der Bahn-Id's und Indizes aus similarity-Vektor
 fprintf('Die größte Anzahl gleicher aufeinander folgender Bahnabschnitte beträgt %d.\n', sequences_max_length);
 for i = 1:length(sequences_longest)
@@ -247,14 +254,14 @@ end
 
 end
 
+toc;
+
 %% Tabelle mit Informationen zu den ähnlichen Bahnen anlegen
+tic;
 
 if ~isempty(aehnliche_bahnen)
-    % BAHNVERGLEICH  = table('Size',[0 9],'VariableTypes',{'string', 'string', 'string', 'string','double','double','double','double','double'}, ...
-        % 'VariableNames',{'bahn_id','robot_model','source_ist','source_soll','tcp_speed','max_abweichung_soll','avg_abweichung_soll','euclidean','sidtw'});
-    
         
-    BAHNVERGLEICH  = table('Size',[0 11],'VariableTypes',{'string', 'string', 'string', 'string','double','double','double','double','double','double','double'}, ...
+    BAHNVERGLEICH  = table('Size',[size(aehnliche_bahnen,1) 11],'VariableTypes',{'string', 'string', 'string', 'string','double','double','double','double','double','double','double'}, ...
         'VariableNames',{'bahn_id','robot_model','source_ist','source_soll','num_equal_points','tcp_speed','max_abweichung_soll','avg_abweichung_soll','euclidean','sidtw','equal_orientation'});
 
     query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_position_soll WHERE bahn_id = '%s'",bahn_id);
@@ -287,7 +294,7 @@ for i = 1:1:size(aehnliche_bahnen,1)
     % % TO-DO: Auswertung SIDTW und EUCLIDEAN hinzufügen
 
     % % Anhängen der Daten in die Tabelle 
-    BAHNVERGLEICH{end+1,:} = [aehnliche_bahnen(i),robot_model,source_ist,source_soll,equal_points,max_speed,max_dist,mean_dist,0,0,0];
+    BAHNVERGLEICH{i,:} = [aehnliche_bahnen(i),robot_model,source_ist,source_soll,equal_points,max_speed,max_dist,mean_dist,0,0,0];
 end
 end
 
@@ -357,4 +364,11 @@ end
 % !!!!!! WENN DATEN MIT GLEICHEN TIMESTAMP DOPPELT VORLIEGEN MÜSSEN DIE
 % DOPPPELTEN DATEN GELÖSCHT WERDEN !!!!!!!
 % ---> GROßES PROBLEM DA NICHT ALLE SEQUENZEN ÜBERLAPPEN 
+
+% PROBLEM: 
+% Größe der Bahnen muss immer gleich sein um Differenzen zu bilden. Wenn
+% mehrere gemeinsame Bahnabschnitte betrachtet werden, müssen die Bahnen
+% aus der Datenbank in die entsprechende Anzahl der Bahnabschnitte
+% unterteilt werde. ---> die Suche nach ähnlichen Bahnen muss aufgrundlage
+% der Bahn Id + der Segment ID verlaufen unter Beachtung der Reiehenfolge!
 

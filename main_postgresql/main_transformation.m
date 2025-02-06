@@ -4,14 +4,19 @@
 
 clear;
 
-bahn_id_ ='1720791370'; % Orientierungsänderung ohne Kalibrierungsdatei
+bahn_id_ ='1738674102'; % Orientierungsänderung ohne Kalibrierungsdatei
+% bahn_id_ = '1721047347';
+bahn_id_ = '1738679118';
+
+% bahn_id_ = '1721049270';
+
 
 % Plotten der Daten 
-plots = false;
+plots = true;
 
 % Upload in die Datenbank
 upload_all = false;
-upload_single = false;
+upload_single = 1;
 
 % Verbindung mit PostgreSQL
 datasource = "RobotervermessungMATLAB";
@@ -183,10 +188,10 @@ if upload_all
             bahn_pose_trans{:,:} = [data_ist{:,2:4}, data_ist_trafo, euler_trans,calibration_ids];
             toc;
 
-            tic;
-            sqlwrite(conn,'robotervermessung.bewegungsdaten.bahn_pose_trans',bahn_pose_trans)
-            disp('Bahn mit der ID '+string(bahn_id_)+' wurde hochgeladen')
-            toc;
+            % tic;
+            % sqlwrite(conn,'robotervermessung.bewegungsdaten.bahn_pose_trans',bahn_pose_trans)
+            % disp('Bahn mit der ID '+string(bahn_id_)+' wurde hochgeladen')
+            % toc;
             
             %% Plots zur Übrüfung
             
@@ -417,8 +422,8 @@ if upload_single && ~ismember(str2double(bahn_id_), existing_bahn_ids)
     calibration_ids = repelem(string(calibration_id),height(bahn_pose_trans))';
     bahn_pose_trans{:,:} = [data_ist{:,2:4}, data_ist_trafo, euler_trans,calibration_ids];
     
-    sqlwrite(conn,'robotervermessung.bewegungsdaten.bahn_pose_trans',bahn_pose_trans)
-    disp('Einzelne Bahn mit der ID '+string(bahn_id_)+' wurde hochgeladen')
+    % sqlwrite(conn,'robotervermessung.bewegungsdaten.bahn_pose_trans',bahn_pose_trans)
+    % disp('Einzelne Bahn mit der ID '+string(bahn_id_)+' wurde hochgeladen')
 elseif upload_single == true && ismember(str2double(bahn_id_), existing_bahn_ids)
     disp("Datei mit der Bahn-ID "+ string(bahn_id_+ " lag bereits vor!"))
 end
