@@ -218,7 +218,7 @@ sequences_all_lengths = end_idx - start_idx + 1;
 
 % Maximale Länge finden
 sequences_max_length = max(sequences_all_lengths);
-% sequences_max_length = 2;
+sequences_max_length = 2;
 
 % Indizes der längsten Sequenzen speichern
 sequences_longest = find(sequences_all_lengths == sequences_max_length);
@@ -294,7 +294,7 @@ if ~isempty(aehnliche_bahnen)
     % Alle Soll-Positionsdaten der Hauptbahn auf einmal abrufen
     query = sprintf("SELECT * FROM robotervermessung.bewegungsdaten.bahn_position_soll WHERE bahn_id = '%s'", bahn_id);
     bahn_points = fetch(conn, query);
-    bahn_points = table2array(bahn_points(:,5:7));
+    % bahn_points = table2array(bahn_points(:,5:7));
 
     % Eine Abfrage für alle ähnlichen Bahnen (schneller als Schleife für einzelne Bahnen)
     bahn_ids_str = strjoin(string(aehnliche_bahnen), "','");
@@ -310,6 +310,7 @@ if ~isempty(aehnliche_bahnen)
 
     % Werte in Schleife zuweisen
     for i = 1:size(aehnliche_bahnen,1)
+
         % Filtere die passenden Daten aus den geladenen Tabellen
         act_speed = speed_data(strcmp(speed_data.bahn_id, aehnliche_bahnen(i)), :);
         max_speed = max(act_speed.tcp_speed_ist);
@@ -320,8 +321,31 @@ if ~isempty(aehnliche_bahnen)
         source_soll = act_info.source_data_soll;
 
         act_position = position_data(strcmp(position_data.bahn_id, aehnliche_bahnen(i)), :);
+
+% %% Nur die ähnlichen Segmente vergleichen
+
+        b = aehnliche_seqs.bahn_abschnitte{i,2}(1):aehnliche_seqs.bahn_abschnitte{i,2}(end);
+
+        a = aehnliche_seqs.bahn_abschnitte{i,1}(1):aehnliche_seqs.bahn_abschnitte{i,1}(end);
+        n = a(end)-a(1)+2;
+        ab = strings(n,1);
+        ba = strings(n,1);
+        for j = 1:n+1
+            if j <= n-1
+                ab(j) = act_position.bahn_id(1) + '_'+ string(a(j));
+                ba(j) = bahn_points.bahn_id(1) + '_' + string(b(j));
+            elseif j == n
+                ab(j) = act_position.bahn_id(1) + '_'+string(a(j-1)+1);
+                ba(j) = bahn_points.bahn_id(1) + '_' + string(b(j-1)+1);
+            end
+        end
+        
+        act_position = position_data(ismember(position_data.segment_id, ab), :);
+        bahn_points_2 = bahn_points(ismember(bahn_points.segment_id, ba), :);
+% %% 
+
         points = table2array(act_position(:,5:7));
-        [~, dists, ~] = distance2curve(points, bahn_points, 'linear');
+        [~, dists, ~] = distance2curve(points, table2array(bahn_points_2(:,5:7)), 'linear');
         max_dist = max(dists);
         mean_dist = mean(dists);
 
