@@ -20,7 +20,7 @@ bahn_id_ = '1739349209'; % Bahn mit wenigen Punkten
 evaluate_velocity = 0;
 
 % Berechnung der Metriken für die Orientierungsabweichungen
-evaluate_orientation = 0;
+evaluate_orientation = 1;
 
 % Berechnung der Metriken für bestimmte Bahnabschnitte
 evaluate_segmentwise = false;
@@ -35,7 +35,7 @@ evaluate_all = true; %% immer true!
 plots = false;
 
 % Upload in die Datenbank
-upload = true;
+upload = false;
 
 
 datasource = "RobotervermessungMATLAB";
@@ -575,21 +575,25 @@ if evaluate_all == true && evaluate_velocity == false
 
     % segment_id = bahn_id; 
 
+    % Segment 0 und das letzte Segment abschneiden 
+    first_row_ist = find(data_ist.segment_id == segment_ids{1,1}, 1);
+    last_row_ist = find(data_ist.segment_id == segment_ids{end,1}, 1)-1;
+    data_all_ist = data_ist(first_row_ist:last_row_ist,:);
+    first_row_soll = find(data_soll.segment_id == segment_ids{1,1}, 1);
+    last_row_soll = find(data_soll.segment_id == segment_ids{end,1}, 1)-1;
+    data_all_soll = data_soll(first_row_soll:last_row_soll,:);
+
     if evaluate_orientation == true
-        q_transformed_all = transformQuaternion(data_ist, data_soll, q_transform, trafo_rot);
+        q_transformed_all = transformQuaternion(data_all_ist, data_all_soll, q_transform, trafo_rot);
         
         % Quaternion-Transformation für die weitere Verarbeitung verwenden
         data_all_ist = q_transformed_all;
         data_ist_trafo = fixGimbalLock(rad2deg(quat2eul(data_all_ist)));
-        data_all_soll = [data_soll.qw_soll, data_soll.qx_soll, data_soll.qy_soll, data_soll.qz_soll];
+        data_all_soll = [data_all_soll.qw_soll, data_all_soll.qx_soll, data_all_soll.qy_soll, data_all_soll.qz_soll];
         data_all_soll = fixGimbalLock(rad2deg(quat2eul(data_all_soll)));
                
     else 
         % Rest des Codes bleibt gleich...
-        last_row_ist = find(data_ist.segment_id == segment_ids{end,1}, 1)-1;
-        data_all_ist = data_ist(1:last_row_ist,:);
-        last_row_soll = find(data_soll.segment_id == segment_ids{end,1}, 1)-1;
-        data_all_soll = data_soll(1:last_row_soll,:);
     
         data_all_ist = table2array(data_all_ist(:,5:7));
         data_all_soll = table2array(data_all_soll(:,5:7));
@@ -631,11 +635,28 @@ if evaluate_all == true && evaluate_velocity == false
     metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_,bahn_id_)
     metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_,bahn_id_)
 
+    % Info Tabellen hinzufügen
     table_euclidean_info = [seg_euclidean_info; table_euclidean_info];
     table_sidtw_info = [seg_sidtw_info; table_sidtw_info];
     table_dtw_info = [seg_dtw_info; table_dtw_info];
     table_dfd_info = [seg_dfd_info; table_dfd_info];
     table_lcss_info = [seg_lcss_info; table_lcss_info];
+    
+    % Deviation Tabellen werden ans Ende angehängt
+    seg_sidtw_distances = [seg_sidtw_distances, table((1:1:size(seg_sidtw_distances,1))','VariableNames',{'points_order'})];
+    table_sidtw_deviation{end+1} = seg_sidtw_distances;
+
+    seg_dtw_distances = [seg_dtw_distances, table((1:1:size(seg_dtw_distances,1))','VariableNames',{'points_order'})];
+    table_dtw_deviation{end+1} = seg_dtw_distances;
+
+    seg_dfd_distances = [seg_dfd_distances, table((1:1:size(seg_dfd_distances,1))','VariableNames',{'points_order'})];
+    table_dfd_deviation{end+1} = seg_dfd_distances;
+
+    seg_euclidean_distances = [seg_euclidean_distances, table((1:1:size(seg_euclidean_distances,1))','VariableNames',{'points_order'})];
+    table_euclidean_deviation{end+1} = seg_euclidean_distances;
+
+    seg_lcss_distances = [seg_lcss_distances, table((1:1:size(seg_lcss_distances,1))','VariableNames',{'points_order'})];
+    table_lcss_deviation{end+1} = seg_lcss_distances;
 
 
 %%%%%%%%%% Für die Auswertung in Matlab (für Datenbank irrelevant)
@@ -1047,10 +1068,11 @@ if upload == true
             upload2postgresql('robotervermessung.auswertung.info_euclidean',table_euclidean_info,segment_ids,type{1},conn)
             % upload2postgresql('robotervermessung.auswertung.info_lcss',table_lcss_info,segment_ids,type{1},conn)
         end
-
-        if evaluate_all == true 
-            segment_ids = segment_ids(2:end,:); % segment_id = bahn_id löschen!
-        end
+        
+        %%% WENN DATEN NICHT DOPPELT (SEGMENTWEISE UND FÜR GANZE BAHN HOCHGELADEN WERDEN SOLLEN
+        % if evaluate_all == true 
+        %     segment_ids = segment_ids(2:end,:); % segment_id = bahn_id löschen!
+        % end
 
         % Abweichungen der Orientierungen 
         if evaluate_orientation == true && evaluate_velocity == false                                           
@@ -1061,17 +1083,17 @@ if upload == true
             disp('SIDTW Deviation hochgeladen')
             upload2postgresql('robotervermessung.auswertung.orientation_dtw',table_dtw_deviation,segment_ids,type{1},conn)
             disp('DTW Deviation hochgeladen')
-            % upload2postgresql('robotervermessung.auswertung.orientation_dfd',table_dfd_deviation,segment_ids,type{1},conn)
-            % disp('DFD Deviation hochgeladen')
-            % upload2postgresql('robotervermessung.auswertung.orientation_lcss',table_lcss_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.orientation_dfd',table_dfd_deviation,segment_ids,type{1},conn)
+            disp('DFD Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.orientation_lcss',table_lcss_deviation,segment_ids,type{1},conn)
         % Abweichungen der Geschwindigkeiten
         elseif evaluate_velocity == true && evaluate_orientation == false
             upload2postgresql('robotervermessung.auswertung.speed_sidtw',table_sidtw_deviation,segment_ids,type{1},conn)
             disp('SIDTW Deviation hochgeladen')
             upload2postgresql('robotervermessung.auswertung.speed_dtw',table_dtw_deviation,segment_ids,type{1},conn)
             disp('DTW Deviation hochgeladen')
-            % upload2postgresql('robotervermessung.auswertung.speed_dfd',table_dfd_deviation,segment_ids,type{1},conn)
-            % disp('DFD Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.speed_dfd',table_dfd_deviation,segment_ids,type{1},conn)
+            disp('DFD Deviation hochgeladen')
         % Abweichungen der Positionen
         else
             upload2postgresql('robotervermessung.auswertung.position_euclidean',table_euclidean_deviation,segment_ids,type{1},conn)
@@ -1080,9 +1102,9 @@ if upload == true
             disp('SIDTW Deviation hochgeladen')
             upload2postgresql('robotervermessung.auswertung.position_dtw',table_dtw_deviation,segment_ids,type{1},conn)
             disp('DTW Deviation hochgeladen')
-            % upload2postgresql('robotervermessung.auswertung.position_dfd',table_dfd_deviation,segment_ids,type{1},conn)
-            % disp('DFD Deviation hochgeladen')
-            % upload2postgresql('robotervermessung.auswertung.position_lcss',table_lcss_deviation,segment_ids,type{1},conn)
+            upload2postgresql('robotervermessung.auswertung.position_dfd',table_dfd_deviation,segment_ids,type{1},conn)
+            disp('DFD Deviation hochgeladen')
+            upload2postgresql('robotervermessung.auswertung.position_lcss',table_lcss_deviation,segment_ids,type{1},conn)
         end
 
         disp('Der Upload war erfolgreich!')
