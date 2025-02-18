@@ -10,5 +10,3 @@ elseif size(data_ist,2) == 3
     data_ist = data_ist * trafo_rot + trafo_trans;
     assignin("base","data_ist_trafo",data_ist)
 end
-
-

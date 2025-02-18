@@ -2,13 +2,14 @@
 clear;
 clc;
 
-bahn_id_ = '1738682877';
+bahn_id_ = '1738827002';
 %bahn_id_ = '1721048142';% Orientierungsänderung ohne Kalibrierungsdatei
 plots = true;              % Plotten der Daten 
 upload_all = false;        % Upload aller Bahnen
 upload_single = false;     % Nur eine einzelne Bahn
-transform_only = true;    % Nur Transformation und Plot, kein Upload
+transform_only = true;     % Nur Transformation und Plot, kein Upload
 is_pick_and_place = true;  % NEU: Flag für Pick-and-Place Aufgaben
+use_unwrapped = true;      % Verwendung von kontinuierlichen (unwrapped) Winkeln 
 
 schema = 'bewegungsdaten';
 
@@ -54,9 +55,12 @@ data_cal_soll = sortrows(data_cal_soll,'timestamp');
 fprintf('Size of ist dataset: %d samples\n', height(data_cal_ist));
 fprintf('Size of soll dataset: %d samples\n', height(data_cal_soll));
 
+%%
+
 % Extract quaternions from tables using your data structure
 q_soll = table2array(data_cal_soll(:,5:8));
-q_soll = [q_soll(:,4), q_soll(:,3), q_soll(:,2), q_soll(:,1)]; % Reorder to [w x y z]
+q_soll = [q_soll(:,4), q_soll(:,3), q_soll(:,2),q_soll(:,1)]; % Reorder to [w x y z]
+%q_soll = [q_soll(:,4), q_soll(:,3), q_soll(:,2),q_soll(:,1)]; % Reorder to original
 
 q_ist = table2array(data_cal_ist(:,8:11));
 q_ist = [q_ist(:,4), q_ist(:,3), q_ist(:,2), q_ist(:,1)];   % Reorder to [w x y z]
@@ -83,6 +87,7 @@ q_ist_quat = quaternion(q_ist);
 n = length(q_ist_quat);
 M_ist = zeros(4,4);
 M_soll = zeros(4,4);
+
 
 % Build averaging matrices
 for i = 1:n
@@ -121,43 +126,45 @@ for i = 1:n
     q_transformed_array(i,:) = compact(q_transformed(i));
 end
 
-% Create visualization - we'll plot x, y, z components (ignoring w)
-figure('Color', 'white', 'Position', [100, 100, 1200, 600]);
+% Farbdefinitionen am Anfang des Scripts
+if use_unwrapped
+    % Warme Farben für unwrapped
+    colors.roll = [255, 107, 107]/255;        % Rot
+    colors.pitch = [255, 179, 71]/255;        % Orange
+    colors.yaw = [78, 205, 196]/255;          % Türkis
+    colors.ist = [150, 150, 150]/255;         % Grau
+    colors.transformed = [50, 50, 50]/255;    % Dunkelgrau
+else
+    % Kühle Farben für nicht-unwrapped
+    colors.roll = [69, 183, 209]/255;         % Hellblau
+    colors.pitch = [45, 62, 80]/255;          % Dunkelblau
+    colors.yaw = [39, 174, 96]/255;           % Grün
+    colors.ist = [150, 150, 150]/255;         % Grau
+    colors.transformed = [50, 50, 50]/255;    % Dunkelgrau
+end
 
-% Plot X component
-subplot(3,1,1)
-hold on
-plot(ist_times, q_ist_array(:,2), 'b--', 'LineWidth', 1, 'DisplayName', 'Original')
-plot(ist_times, q_soll_array(:,2), 'r-', 'LineWidth', 1, 'DisplayName', 'Target')
-plot(ist_times, q_transformed_array(:,2), 'g-', 'LineWidth', 2, 'DisplayName', 'Transformed')
-title('X Component of Quaternion')
-ylabel('X')
-legend('Location', 'best')
-grid on
-hold off
 
-% Plot Y component
-subplot(3,1,2)
-hold on
-plot(ist_times, q_ist_array(:,3), 'b--', 'LineWidth', 1, 'DisplayName', 'Original')
-plot(ist_times, q_soll_array(:,3), 'r-', 'LineWidth', 1, 'DisplayName', 'Target')
-plot(ist_times, q_transformed_array(:,3), 'g-', 'LineWidth', 2, 'DisplayName', 'Transformed')
-title('Y Component of Quaternion')
-ylabel('Y')
-grid on
-hold off
-
-% Plot Z component
-subplot(3,1,3)
-hold on
-plot(ist_timestamps, q_ist_array(:,4), 'b--', 'LineWidth', 1, 'DisplayName', 'Original')
-plot(ist_timestamps, q_soll_array(:,4), 'r-', 'LineWidth', 1, 'DisplayName', 'Target')
-plot(ist_timestamps, q_transformed_array(:,4), 'g-', 'LineWidth', 2, 'DisplayName', 'Transformed')
-title('Z Component of Quaternion')
-xlabel('Time (s)')
-ylabel('Z')
-grid on
-hold off
+% Kombinierte Visualisierung der Quaternionen-Komponenten
+figure('Color', 'white', 'Position', [100, 100, 1200, 400]);
+hold on;
+% X-Komponente
+plot(ist_times, q_ist_array(:,2), 'b--', 'LineWidth', 1);
+plot(ist_times, q_soll_array(:,2), 'r-', 'LineWidth', 1);
+plot(ist_times, q_transformed_array(:,2), 'g-', 'LineWidth', 2);
+% Y-Komponente
+plot(ist_times, q_ist_array(:,3), 'b--', 'LineWidth', 1);
+plot(ist_times, q_soll_array(:,3), 'r-', 'LineWidth', 1);
+plot(ist_times, q_transformed_array(:,3), 'g-', 'LineWidth', 2);
+% Z-Komponente
+plot(ist_times, q_ist_array(:,4), 'b--', 'LineWidth', 1);
+plot(ist_times, q_soll_array(:,4), 'r-', 'LineWidth', 1);
+plot(ist_times, q_transformed_array(:,4), 'g-', 'LineWidth', 2);
+title('Quaternion Components');
+ylabel('Component Value');
+xlabel('Time (s)');
+legend('Ist X', 'Soll X', 'Trans X', 'Ist Y', 'Soll Y', 'Trans Y', 'Ist Z', 'Soll Z', 'Trans Z', 'Location', 'best');
+grid on;
+hold off;
 
 % Print transformation quaternion components
 transform_array = compact(q_transform);
@@ -173,73 +180,61 @@ fprintf('Average quaternion error after transformation: %.4f\n', error_after);
 % Store the transformation quaternion in the workspace
 assignin('base', 'trafo_quat', q_transform);
 
-% For ist data (mocap measurements)
-euler_ist = zeros(length(q_ist_quat), 3);
-for i = 1:length(q_ist_quat)
-    euler_ist(i,:) = quat2eul(compact(q_ist_quat(i)), 'ZYX');
-end
+% Find the nearest ist measurement for each soll timestamp
+[~, nearest_indices] = min(abs(ist_times - soll_times'), [], 1);
 
-% For soll data (robot controller commands) - using original soll data
-euler_soll_original = zeros(length(q_soll), 3);
-for i = 1:length(q_soll)
-    euler_soll_original(i,:) = quat2eul(q_soll(i,:), 'ZYX');
-end
+% Berechne Fehler für beide Varianten
+% Unwrapped Version
+euler_ist_unwrapped = quaternionToContinuousEuler(q_ist_quat, true);
+euler_soll_unwrapped = quaternionToContinuousEuler(q_soll, true);
+euler_transformed_unwrapped = quaternionToContinuousEuler(q_transformed, true);
 
-% For transformed data
-euler_transformed = zeros(length(q_transformed), 3);
-for i = 1:length(q_transformed)
-    euler_transformed(i,:) = quat2eul(compact(q_transformed(i)), 'ZYX');
-end
+% Normal Version (ohne Unwrapping)
+euler_ist_base = quaternionToContinuousEuler(q_ist_quat, false);
+euler_soll_base = quaternionToContinuousEuler(q_soll, false);
+euler_transformed_base = quaternionToContinuousEuler(q_transformed, false);
 
-% Convert all angles to degrees
-euler_ist = rad2deg(euler_ist);
-euler_soll = rad2deg(euler_soll_original);
-euler_transformed = rad2deg(euler_transformed);
+% Get the transformed values at soll timestamps
+euler_transformed_unwrapped_at_soll = euler_transformed_unwrapped(nearest_indices, :);
+euler_transformed_base_at_soll = euler_transformed_base(nearest_indices, :);
 
-% Create new figure for Euler angle comparison
-figure('Color', 'white', 'Position', [100, 100, 1200, 600], 'Name', 'Euler Angles Comparison');
+% Berechne relative Abweichungen für beide Varianten
+fprintf('\nRelative Abweichungen:\n');
+fprintf('Mit Unwrapping:\n');
+rel_error_unwrapped = abs(euler_soll_unwrapped - euler_transformed_unwrapped_at_soll) ./ abs(euler_soll_unwrapped) * 100;
+fprintf('  Roll: %.2f%%\n  Pitch: %.2f%%\n  Yaw: %.2f%%\n', ...
+    mean(rel_error_unwrapped(:,3)), ...
+    mean(rel_error_unwrapped(:,2)), ...
+    mean(rel_error_unwrapped(:,1)));
 
-% Plot roll (rotation around X)
-subplot(3,1,1)
-hold on
-plot(ist_times, euler_ist(:,3), 'b--', 'LineWidth', 1, 'DisplayName', 'Original')
-plot(soll_times, euler_soll(:,3), 'r-', 'LineWidth', 1, 'DisplayName', 'Target')
-plot(ist_times, euler_transformed(:,3), 'g-', 'LineWidth', 2, 'DisplayName', 'Transformed')
-title('Roll Angle')
-ylabel('Degrees')
-legend('Location', 'best')
-grid on
-hold off
+fprintf('\nOhne Unwrapping:\n');
+rel_error_normal = abs(euler_soll_base - euler_transformed_base_at_soll) ./ abs(euler_soll_base) * 100;
+fprintf('  Roll: %.2f%%\n  Pitch: %.2f%%\n  Yaw: %.2f%%\n', ...
+    mean(rel_error_normal(:,3)), ...
+    mean(rel_error_normal(:,2)), ...
+    mean(rel_error_normal(:,1)));
 
-% Plot pitch (rotation around Y)
-subplot(3,1,2)
-hold on
-plot(ist_times, euler_ist(:,2), 'b--', 'LineWidth', 1, 'DisplayName', 'Original')
-plot(soll_times, euler_soll(:,2), 'r-', 'LineWidth', 1, 'DisplayName', 'Target')
-plot(ist_times, euler_transformed(:,2), 'g-', 'LineWidth', 2, 'DisplayName', 'Transformed')
-title('Pitch Angle')
-ylabel('Degrees')
-grid on
-hold off
-
-% Plot yaw (rotation around Z)
-subplot(3,1,3)
-hold on
-plot(ist_times, euler_ist(:,1), 'b--', 'LineWidth', 1, 'DisplayName', 'Original')
-plot(soll_times, euler_soll(:,1), 'r-', 'LineWidth', 1, 'DisplayName', 'Target')
-plot(ist_times, euler_transformed(:,1), 'g-', 'LineWidth', 2, 'DisplayName', 'Transformed')
-title('Yaw Angle')
-xlabel('Time (s)')
-ylabel('Degrees')
-grid on
-hold off
-
-% First, let's print the sizes to understand what we're working with
-fprintf('Size of soll_times: %d\n', length(soll_times));
-fprintf('Size of ist_times: %d\n', length(ist_times));
-fprintf('Size of euler_transformed: %d\n', size(euler_transformed, 1));
-fprintf('Size of euler_soll_original: %d\n', size(euler_soll_original, 1));
-fprintf('Size of euler_ist: %d\n', size(euler_ist, 1));
+% Verwendung in den Plots
+figure('Color', 'white', 'Position', [100, 100, 1200, 400]);
+hold on;
+% Roll
+plot(ist_times, euler_ist_base(:,3), '--', 'Color', colors.ist, 'LineWidth', 1);
+plot(soll_times, euler_soll_base(:,3), '-', 'Color', colors.roll, 'LineWidth', 2);
+plot(ist_times, euler_transformed_base(:,3), '-', 'Color', colors.transformed, 'LineWidth', 1);
+% Pitch
+plot(ist_times, euler_ist_base(:,2), '--', 'Color', colors.ist, 'LineWidth', 1);
+plot(soll_times, euler_soll_base(:,2), '-', 'Color', colors.pitch, 'LineWidth', 2);
+plot(ist_times, euler_transformed_base(:,2), '-', 'Color', colors.transformed, 'LineWidth', 1);
+% Yaw
+plot(ist_times, euler_ist_base(:,1), '--', 'Color', colors.ist, 'LineWidth', 1);
+plot(soll_times, euler_soll_base(:,1), '-', 'Color', colors.yaw, 'LineWidth', 2);
+plot(ist_times, euler_transformed_base(:,1), '-', 'Color', colors.transformed, 'LineWidth', 1);
+title('Euler Angles');
+ylabel('Degrees');
+xlabel('Time (s)');
+legend('Ist Roll', 'Soll Roll', 'Trans Roll', 'Ist Pitch', 'Soll Pitch', 'Trans Pitch', 'Ist Yaw', 'Soll Yaw', 'Trans Yaw', 'Location', 'best');
+grid on;
+hold off;
 
 % Find the nearest ist measurement for each soll timestamp
 [~, nearest_indices] = min(abs(ist_times - soll_times'), [], 1);
@@ -247,12 +242,12 @@ fprintf('Size of euler_ist: %d\n', size(euler_ist, 1));
 % Each value in nearest_indices tells us which ist measurement is closest to each soll timestamp
 
 % Get the ist and transformed values at these indices
-euler_ist_at_soll = euler_ist(nearest_indices, :);         % Will be 1417 x 3
-euler_transformed_at_soll = euler_transformed(nearest_indices, :); % Will be 1417 x 3
+euler_ist_base_at_soll = euler_ist_base(nearest_indices, :);         % Will be 1417 x 3
+euler_transformed_base_at_soll = euler_transformed_base(nearest_indices, :); % Will be 1417 x 3
 
 % Calculate errors - now all arrays have length 1417
-euler_error_before = mean(abs(euler_soll_original - euler_ist_at_soll), 1);
-euler_error_after = mean(abs(euler_soll_original - euler_transformed_at_soll), 1);
+euler_error_before = mean(abs(euler_soll_base - euler_ist_base_at_soll), 1);
+euler_error_after = mean(abs(euler_soll_base - euler_transformed_base_at_soll), 1);
 
 fprintf('\nEuler Angle Errors (in degrees):\n');
 fprintf('Before transformation:\n');
@@ -264,177 +259,6 @@ fprintf('\nAfter transformation:\n');
 fprintf('  Roll error: %.2f°\n', euler_error_after(3));
 fprintf('  Pitch error: %.2f°\n', euler_error_after(2));
 fprintf('  Yaw error: %.2f°\n', euler_error_after(1));
-
-% Function to unwrap angles while maintaining relative differences
-function unwrapped = customUnwrap(angles)
-    % Start with MATLAB's built-in unwrap for initial correction
-    unwrapped = unwrap(angles, pi);  % pi radians = 180 degrees tolerance
-    
-    % Convert back to degrees
-    unwrapped = rad2deg(unwrapped);
-    
-    % Optional: Normalize to start near zero or another reference
-    % This helps make the visualization more intuitive
-    unwrapped = unwrapped - unwrapped(1) + angles(1);
-end
-
-% Apply unwrapping to each Euler angle component
-euler_ist_unwrapped = zeros(size(euler_ist));
-euler_soll_unwrapped = zeros(size(euler_soll));
-euler_transformed_unwrapped = zeros(size(euler_transformed));
-
-% Unwrap each angle sequence
-for i = 1:3
-    euler_ist_unwrapped(:,i) = customUnwrap(deg2rad(euler_ist(:,i)));
-    euler_soll_unwrapped(:,i) = customUnwrap(deg2rad(euler_soll(:,i)));
-    euler_transformed_unwrapped(:,i) = customUnwrap(deg2rad(euler_transformed(:,i)));
-end
-
-% Create new figure for unwrapped Euler angle comparison
-figure('Color', 'white', 'Position', [100, 100, 1200, 600], 'Name', 'Unwrapped Euler Angles Comparison');
-
-% Plot unwrapped roll (rotation around X)
-subplot(3,1,1)
-hold on
-plot(ist_times, euler_ist_unwrapped(:,3), 'b--', 'LineWidth', 1, 'DisplayName', 'Original')
-plot(soll_times, euler_soll_unwrapped(:,3), 'r-', 'LineWidth', 1, 'DisplayName', 'Target')
-plot(ist_times, euler_transformed_unwrapped(:,3), 'g-', 'LineWidth', 2, 'DisplayName', 'Transformed')
-title('Unwrapped Roll Angle')
-ylabel('Degrees')
-legend('Location', 'best')
-grid on
-hold off
-
-% Plot unwrapped pitch (rotation around Y)
-subplot(3,1,2)
-hold on
-plot(ist_times, euler_ist_unwrapped(:,2), 'b--', 'LineWidth', 1, 'DisplayName', 'Original')
-plot(soll_times, euler_soll_unwrapped(:,2), 'r-', 'LineWidth', 1, 'DisplayName', 'Target')
-plot(ist_times, euler_transformed_unwrapped(:,2), 'g-', 'LineWidth', 2, 'DisplayName', 'Transformed')
-title('Unwrapped Pitch Angle')
-ylabel('Degrees')
-grid on
-hold off
-
-% Plot unwrapped yaw (rotation around Z)
-subplot(3,1,3)
-hold on
-plot(ist_times, euler_ist_unwrapped(:,1), 'b--', 'LineWidth', 1, 'DisplayName', 'Original')
-plot(soll_times, euler_soll_unwrapped(:,1), 'r-', 'LineWidth', 1, 'DisplayName', 'Target')
-plot(ist_times, euler_transformed_unwrapped(:,1), 'g-', 'LineWidth', 2, 'DisplayName', 'Transformed')
-title('Unwrapped Yaw Angle')
-xlabel('Time (s)')
-ylabel('Degrees')
-grid on
-hold off
-
-% Add overall title to clarify these are unwrapped angles
-sgtitle('Unwrapped Euler Angles (Continuous Representation)', 'FontSize', 12)
-
-%% VALIDATION
-
-% 1. Validation at Controller Timestamps
-% This checks transformation accuracy at the actual commanded positions
-[~, controller_indices] = min(abs(ist_times - soll_times'), [], 1);
-controller_errors = zeros(length(soll_times), 3);  % Store errors for each axis
-
-for i = 1:length(soll_times)
-    % Get the closest mocap measurement to this controller timestamp
-    ist_idx = controller_indices(i);
-    
-    % Convert quaternions to Euler angles for intuitive comparison
-    euler_transformed = quat2eul(compact(q_transformed(ist_idx)), 'ZYX');
-    euler_soll = quat2eul(q_soll(i,:), 'ZYX');
-    
-    % Store errors in degrees for each rotation axis
-    controller_errors(i,:) = rad2deg(abs(euler_transformed - euler_soll));
-end
-
-fprintf('Accuracy at controller timestamps:\n');
-fprintf('  Roll error (mean/max): %.2f° / %.2f°\n', mean(controller_errors(:,3)), max(controller_errors(:,3)));
-fprintf('  Pitch error (mean/max): %.2f° / %.2f°\n', mean(controller_errors(:,2)), max(controller_errors(:,2)));
-fprintf('  Yaw error (mean/max): %.2f° / %.2f°\n', mean(controller_errors(:,1)), max(controller_errors(:,1)));
-
-% 2. Check Quaternion Properties
-% Verify that transformed quaternions maintain unit length
-q_lengths = zeros(length(q_transformed), 1);
-for i = 1:length(q_transformed)
-    q = compact(q_transformed(i));
-    q_lengths(i) = norm(q);
-end
-
-fprintf('\nQuaternion properties check:\n');
-fprintf('  Mean quaternion length: %.6f (should be 1.0)\n', mean(q_lengths));
-fprintf('  Max deviation from unit length: %.6f\n', max(abs(1 - q_lengths)));
-
-% 3. Transformation Consistency Check
-% The transformation should be consistent across the trajectory
-consistency_errors = zeros(length(q_transformed)-1, 1);
-for i = 1:length(q_transformed)-1
-    % Calculate relative rotation between consecutive points
-    rel_rot_transformed = q_transformed(i+1) / q_transformed(i);
-    rel_rot_soll = q_soll_quat(i+1) / q_soll_quat(i);
-    
-    % Compare relative rotations
-    consistency_errors(i) = norm(compact(rel_rot_transformed) - compact(rel_rot_soll));
-end
-
-fprintf('\nTransformation consistency:\n');
-fprintf('  Mean consistency error: %.6f\n', mean(consistency_errors));
-fprintf('  Max consistency error: %.6f\n', max(consistency_errors));
-
-% 4. Axis-Specific Validation
-% Check if the transformation maintains important axis relationships
-% This is particularly useful for robotics applications
-reference_vector = [0 0 1];  % Example: checking Z-axis alignment
-z_axis_angles = zeros(length(q_transformed), 1);
-
-for i = 1:length(q_transformed)
-    transformed_vector = rotatepoint(q_transformed(i), reference_vector);
-    target_vector = rotatepoint(q_soll_quat(i), reference_vector);
-    z_axis_angles(i) = rad2deg(acos(dot(transformed_vector, target_vector)));
-end
-
-fprintf('\nZ-axis alignment check:\n');
-fprintf('  Mean Z-axis error: %.2f°\n', mean(z_axis_angles));
-fprintf('  Max Z-axis error: %.2f°\n', max(z_axis_angles));
-
-% 5. Visual Validation
-figure('Name', 'Transformation Validation', 'Position', [100 100 1200 800]);
-
-% Plot axis-specific errors over time
-subplot(2,2,1);
-plot(soll_times, controller_errors);
-title('Errors at Controller Timestamps');
-xlabel('Time (s)');
-ylabel('Error (degrees)');
-legend('Roll', 'Pitch', 'Yaw');
-grid on;
-
-% Plot quaternion lengths
-subplot(2,2,2);
-plot(ist_times, q_lengths);
-title('Quaternion Unit Length Check');
-xlabel('Time (s)');
-ylabel('Quaternion Length');
-yline(1, 'r--', 'Unity');
-grid on;
-
-% Plot consistency errors
-subplot(2,2,3);
-plot(ist_times(1:end-1), consistency_errors);
-title('Transformation Consistency');
-xlabel('Time (s)');
-ylabel('Consistency Error');
-grid on;
-
-% Plot Z-axis alignment
-subplot(2,2,4);
-plot(ist_times, z_axis_angles);
-title('Z-Axis Alignment Error');
-xlabel('Time (s)');
-ylabel('Error (degrees)');
-grid on;
 
 %% METHODS
 
@@ -548,12 +372,11 @@ for i = 1:length(q_transformed_window)
     euler_transformed_window(i,:) = quat2eul(compact(q_transformed_window(i)), 'ZYX');
 end
 
-% Convert to degrees
-euler_ist = rad2deg(euler_ist);
-euler_soll = rad2deg(euler_soll);
-euler_transformed_interp = rad2deg(euler_transformed_interp);
-euler_transformed_nn = rad2deg(euler_transformed_nn);
-euler_transformed_window = rad2deg(euler_transformed_window);
+euler_ist = quaternionToContinuousEuler(q_ist_quat_interp, use_unwrapped);
+euler_soll = quaternionToContinuousEuler(q_soll_quat_interp, use_unwrapped);
+euler_transformed_interp = quaternionToContinuousEuler(q_transformed_interp, use_unwrapped);
+euler_transformed_nn = quaternionToContinuousEuler(q_transformed_nn, use_unwrapped);
+euler_transformed_window = quaternionToContinuousEuler(q_transformed_window, use_unwrapped);
 
 %% Calculate errors for each method
 fprintf('\nComparison of Methods:\n');
@@ -623,3 +446,42 @@ hold off;
 assignin('base', 'trafo_quat_interp', q_transform_interp);
 assignin('base', 'trafo_quat_nn', q_transform_nn);
 assignin('base', 'trafo_quat_window', q_transform_window);
+
+function angles_out = quaternionToContinuousEuler(q, use_unwrapped)
+    if isa(q, 'quaternion')
+        q_array = compact(q);
+    else
+        q_array = q;
+    end
+    
+    q_norm = q_array ./ sqrt(sum(q_array.^2, 2));
+    angles = quat2eul(q_norm, 'ZYX');
+    
+    if use_unwrapped
+        % Wandle in Grad um und wende unwrap an
+        angles_unwrapped = unwrap(angles);
+        angles_out = rad2deg(angles_unwrapped);
+        
+        % Korrigiere Yaw durch Überprüfung der Rotation
+        yaw = angles_out(:,1);
+        if abs(mean(yaw)) > 90
+            angles_out(:,1) = 180 * sign(mean(yaw)) - yaw;
+        end
+    else
+        angles_out = rad2deg(angles);
+    end
+end
+
+%%
+
+% When loading your data
+q_soll = table2array(data_cal_soll(:,5:8));
+q_ist = table2array(data_cal_ist(:,8:11));
+
+% Call the new transformation function
+% Call the new transformation function with timestamps
+[q_transformed, error_metrics] = transformQuaternionsWithCoordinates(q_ist, q_soll, ist_times, soll_times, 'XYZ', 'ZYX', true);
+
+% Print error metrics
+fprintf('Mean angular error: %.2f degrees\n', error_metrics.mean_angular_error);
+fprintf('Mean quaternion distance: %.4f\n', error_metrics.quaternion_distance);

@@ -29,20 +29,15 @@ if evaluate_segmentwise
     segment_last = 7;
 end
 % Berechnung der Metriken für die gesamte Messaufnahme
-evaluate_all = true;
+evaluate_all = true; %% immer true!
 
 % Plotten der Daten 
-plots = true;
+plots = false;
 
 % Upload in die Datenbank
-upload = false;
+upload = true;
 
-% % Verbindung mit PostgreSQL
-% datasource = "RobotervermessungMATLAB";
-% username = "postgres";
-% password = "200195Beto";
-% conn = postgresql(datasource,username,password);
-% Verbindung mit PostgreSQL
+
 datasource = "RobotervermessungMATLAB";
 username = "felixthomas";
 password = "manager";
@@ -58,59 +53,19 @@ end
 clear datasource username password
 
 %% Suche nach zugehörigem "Calibration Run"
+schema = 'bewegungsdaten';
 
-query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE robotervermessung.bewegungsdaten.bahn_info.calibration_run = true';
-
-% Abfrage ausführen und Ergebnisse abrufen
-data_cal_info = fetch(conn, query_cal);
-
-% Aktuelles Aufnahmedatum aus bahn_info holen
-query_current = sprintf('SELECT recording_date FROM robotervermessung.bewegungsdaten.bahn_info WHERE bahn_id = ''%s''', bahn_id_);
-current_date_info = fetch(conn, query_current);
-current_datetime = datetime(current_date_info.recording_date, 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');    
-% Initialisierung der Variablen für die beste Übereinstimmung
-best_time_diff = Inf;
-calibration_id = bahn_id_;  % Default: aktuelle Bahn-ID
-found_calibration = false;
-
-% Durchsuche alle Calibration Runs
-for i = 1:height(data_cal_info)
-    cal_datetime = datetime(data_cal_info.recording_date(i), 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');
-    
-    % Prüfe ob gleicher Tag und Calibration Run zeitlich davor liegt
-    if dateshift(cal_datetime, 'start', 'day') == dateshift(current_datetime, 'start', 'day') && ...
-       cal_datetime < current_datetime
-        
-        time_diff = seconds(current_datetime - cal_datetime);
-        
-        % Update beste Übereinstimmung wenn dieser Run näher liegt
-        if time_diff < best_time_diff
-            best_time_diff = time_diff;
-            calibration_id = char(data_cal_info.bahn_id(i));
-            found_calibration = true;
-        end
-    end
-end
-
-% Wenn eine Kalibierungsdatei vorliegt wird diese für die
-% Koordinatentransformation genutzt, ansonsten die wird die gewählte Datei
-% selbst verwendet. 
-if found_calibration
-    disp('Kalibrierungs-Datei vorhanden! ID der Messaufnahme: ' + string(calibration_id))
-else
-    calibration_id = bahn_id_;
-    disp('Zu dem ausgewählten Datensatz liegt keine Kalibrierungsdatei vom gleichen Tag vor!')
-end
+% Suche nach passender Kalibrierungsdatei
+[calibration_id, is_calibration_run] = findCalibrationRun(conn, bahn_id_, schema);
 
 % Extrahieren der Kalibrierungs-Daten
-tablename_cal = 'robotervermessung.bewegungsdaten.bahn_pose_ist';
+tablename_cal = ['robotervermessung.' schema '.bahn_pose_ist'];
 opts_cal = databaseImportOptions(conn,tablename_cal);
 opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
 data_cal_ist= sqlread(conn,tablename_cal,opts_cal);
 data_cal_ist = sortrows(data_cal_ist,'timestamp');
 
-
-tablename_cal = 'robotervermessung.bewegungsdaten.bahn_events';
+tablename_cal = ['robotervermessung.' schema '.bahn_events'];
 opts_cal = databaseImportOptions(conn,tablename_cal);
 opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
 data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
@@ -121,41 +76,17 @@ calibration(data_cal_ist,data_cal_soll, plots)
 
 if evaluate_orientation == true
     % Wenn Orientierung wird andere Collection benötigt
-    tablename_cal = 'robotervermessung.bewegungsdaten.bahn_orientation_soll';
+    tablename_cal = ['robotervermessung.' schema '.bahn_orientation_soll'];
     opts_cal = databaseImportOptions(conn,tablename_cal);
     opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
     data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
     data_cal_soll = sortrows(data_cal_soll,'timestamp');
     
     % Transformation der Quaternionen/Eulerwinkel
-    euler_transformation(data_cal_ist,data_cal_soll)
+    calibrateQuaternion(data_cal_ist, data_cal_soll);
 end
 
-% if evaluate_orientation == true
-%     % Wenn Orientierung wird andere Collection benötigt
-%     tablename_cal = 'robotervermessung.bewegungsdaten.bahn_orientation_soll';
-%     opts_cal = databaseImportOptions(conn,tablename_cal);
-%     opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
-%     data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
-%     data_cal_soll = sortrows(data_cal_soll,'timestamp');
-% 
-%     % Transformation der Quaternionen/Eulerwinkel
-%     euler_transformation(data_cal_ist,data_cal_soll)
-% else
-%     tablename_cal = 'robotervermessung.bewegungsdaten.bahn_events';
-%     opts_cal = databaseImportOptions(conn,tablename_cal);
-%     opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
-%     data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
-%     data_cal_soll = sortrows(data_cal_soll,'timestamp');
-% 
-%     % Positionsdaten für Koordinatentransformation
-%     calibration(data_cal_ist,data_cal_soll)
-% end
-
-clear data_cal data_cal_info diff_bahn_id min_diff_bahn_id min_idx opts_cal tablename_cal check_bahn_id
-clear query_cal min_diff_idx
-clear data_cal_ist data_cal_soll
-
+clear data_cal opts_cal tablename_cal
 
 %% Auslesen der für die entsprechende Auswertung benötigten Daten
 
@@ -169,28 +100,32 @@ num_segments = data_info.np_ereignisse;
 if evaluate_velocity == false && evaluate_orientation == true
 
     % Auslesen der gesamten Ist-Daten
-    query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_pose_ist ' ...
-            'WHERE robotervermessung.bewegungsdaten.bahn_pose_ist.bahn_id = ''' bahn_id_ ''''];
+    query = ['SELECT * FROM robotervermessung.' schema '.bahn_pose_ist ' ...
+            'WHERE robotervermessung.' schema '.bahn_pose_ist.bahn_id = ''' bahn_id_ ''''];
     data_ist = fetch(conn, query);
     data_ist = sortrows(data_ist,'timestamp');
     
     % Auslesen der gesamten Soll-Daten
-    query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_orientation_soll ' ...
-            'WHERE robotervermessung.bewegungsdaten.bahn_orientation_soll.bahn_id = ''' bahn_id_ ''''];
+    query = ['SELECT * FROM robotervermessung.' schema '.bahn_orientation_soll ' ...
+            'WHERE robotervermessung.' schema '.bahn_orientation_soll.bahn_id = ''' bahn_id_ ''''];
     data_soll = fetch(conn, query);
     data_soll = sortrows(data_soll,'timestamp');
-
-    % Transformation der Quarternionen zu Euler-Winkeln
-    q_soll = table2array(data_soll(:,5:8));
-    q_soll = [q_soll(:,4), q_soll(:,3), q_soll(:,2), q_soll(:,1)];
-    euler_soll = quat2eul(q_soll,"ZYX");
-    euler_soll = rad2deg(euler_soll);
-    
+   
     q_ist = table2array(data_ist(:,8:11));
-    q_ist = [q_ist(:,4), q_ist(:,3), q_ist(:,2), q_ist(:,1)];
-    euler_ist = quat2eul(q_ist,"ZYX");
+    q_ist = [q_ist(:,4), q_ist(:,1), q_ist(:,2), q_ist(:,3)];
+    euler_ist = quat2eul(q_ist,"XYZ");
     euler_ist = rad2deg(euler_ist);
 
+    % Position data for transformation
+    position_ist = table2array(data_ist(:,5:7));
+    
+    
+    % Transform position
+    coord_transformation(position_ist, trafo_rot, trafo_trans);
+    
+    q_transformed = transformQuaternion(data_ist, data_soll, q_transform, trafo_rot);
+
+   
 elseif evaluate_velocity == true && evaluate_orientation == false 
 
     % Auslesen der gesamten Ist-Daten
@@ -305,40 +240,92 @@ if evaluate_velocity == true && evaluate_orientation == false
 elseif evaluate_velocity == false && evaluate_orientation == true
 
     disp('Es wird die Orientierung ausgewertet!')
-
-    % euler_soll = mod(euler_soll,360);
-    % euler_ist = mod(euler_ist,360);
-
-    % Speichern der einzelnen Semgente in Tabelle
-    segments_ist = array2table([{data_ist.segment_id(1)} euler_ist(1:idx_new_seg_ist(1)-1,1) euler_ist(1:idx_new_seg_ist(1)-1,2) euler_ist(1:idx_new_seg_ist(1)-1,3)], "VariableNames",{'segment_id','roll_ist','pitch_ist','yaw_ist'});
     
+    % First segment IST data (quaternions)
+    segments_ist = array2table([{data_ist.segment_id(1)} ...
+                              data_ist.qw_ist(1:idx_new_seg_ist(1)-1) ...
+                              data_ist.qx_ist(1:idx_new_seg_ist(1)-1) ...
+                              data_ist.qy_ist(1:idx_new_seg_ist(1)-1) ...
+                              data_ist.qz_ist(1:idx_new_seg_ist(1)-1)], ...
+                              'VariableNames', {'segment_id', 'qw_ist', 'qx_ist', 'qy_ist', 'qz_ist'});
+    
+    % Remaining IST segments
     for i = 1:num_segments
-    
         if i == length(idx_new_seg_ist)
-            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} euler_ist(idx_new_seg_ist(i):end,1) euler_ist(idx_new_seg_ist(i):end,2) euler_ist(idx_new_seg_ist(i):end,3)]);
+            % Last segment
+            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} ...
+                                             data_ist.qw_ist(idx_new_seg_ist(i):end) ...
+                                             data_ist.qx_ist(idx_new_seg_ist(i):end) ...
+                                             data_ist.qy_ist(idx_new_seg_ist(i):end) ...
+                                             data_ist.qz_ist(idx_new_seg_ist(i):end)]);
         else
-            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,1) euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,2) euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,3)]);
+            % Middle segments
+            segments_ist(i+1,:) = array2table([{segment_ids{i,:}} ...
+                                             data_ist.qw_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) ...
+                                             data_ist.qx_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) ...
+                                             data_ist.qy_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) ...
+                                             data_ist.qz_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1)]);
         end
-    
     end
     
-    segments_soll = array2table([{data_soll.segment_id(1)} euler_soll(1:idx_new_seg_soll(1)-1,1) euler_soll(1:idx_new_seg_soll(1)-1,2) euler_soll(1:idx_new_seg_soll(1)-1,3)], "VariableNames",{'segment_id','roll_soll','pitch_soll','yaw_soll'});
+    % First segment SOLL data
+    segments_soll = array2table([{data_soll.segment_id(1)} ...
+                                data_soll.qw_soll(1:idx_new_seg_soll(1)-1) ...
+                                data_soll.qx_soll(1:idx_new_seg_soll(1)-1) ...
+                                data_soll.qy_soll(1:idx_new_seg_soll(1)-1) ...
+                                data_soll.qz_soll(1:idx_new_seg_soll(1)-1)], ...
+                                'VariableNames', {'segment_id', 'qw_soll', 'qx_soll', 'qy_soll', 'qz_soll'});
+    
+    % Remaining SOLL segments
     for i = 1:num_segments
         if i == length(idx_new_seg_soll)
-            segments_soll(i+1,:) = array2table([{segment_ids{i,:}} euler_soll(idx_new_seg_soll(i):end,1) euler_soll(idx_new_seg_soll(i):end,2) euler_soll(idx_new_seg_soll(i):end,3)]);
+            segments_soll(i+1,:) = array2table([{segment_ids{i,:}} ...
+                                              data_soll.qw_soll(idx_new_seg_soll(i):end) ...
+                                              data_soll.qx_soll(idx_new_seg_soll(i):end) ...
+                                              data_soll.qy_soll(idx_new_seg_soll(i):end) ...
+                                              data_soll.qz_soll(idx_new_seg_soll(i):end)]);
         else
-            segments_soll(i+1,:)= array2table([{segment_ids{i,:}} euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,1) euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,2) euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,3)]);
-        end    
+            segments_soll(i+1,:) = array2table([{segment_ids{i,:}} ...
+                                              data_soll.qw_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) ...
+                                              data_soll.qx_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) ...
+                                              data_soll.qy_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) ...
+                                              data_soll.qz_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1)]);
+        end
     end
     
-    % Transformation der Eulerwinkel für alle Segemente
+    % Initialize transformation results
     segments_trafo = table();
-    for i = 1:1:num_segments+1
-        euler_transformation(segments_ist(i,:),segments_soll(i,:), trafo_euler, trafo_rot)
-        % % Winkel von 0-360° statt -180° bis 180°
-        segments_trafo(i,:) = seg_trafo;
-    end
+    q_transformed_all = [];
+    
+    % Transform each segment
+    for i = 1:num_segments+1
+        % Extract quaternions for current segment
+        segment_ist = table2struct(segments_ist(i,:));
+        segment_soll = table2struct(segments_soll(i,:));
+        
+        % Create temporary tables with the segment data
+        data_ist_seg = table(segment_ist.qw_ist, segment_ist.qx_ist, segment_ist.qy_ist, segment_ist.qz_ist, ...
+                            'VariableNames', {'qw_ist', 'qx_ist', 'qy_ist', 'qz_ist'});
+        data_soll_seg = table(segment_soll.qw_soll, segment_soll.qx_soll, segment_soll.qy_soll, segment_soll.qz_soll, ...
+                             'VariableNames', {'qw_soll', 'qx_soll', 'qy_soll', 'qz_soll'});
+        
+        % Transform using existing function
+        q_transformed = transformQuaternion(data_ist_seg, data_soll_seg, q_transform, trafo_rot);
 
+        % Add row to segments_trafo
+        segments_trafo(i,:) = table({segments_ist.segment_id(i)}, ...
+                               {q_transformed(:,1)}, {q_transformed(:,2)}, ...
+                               {q_transformed(:,3)}, {q_transformed(:,4)}, ...
+                               'VariableNames', {'segment_id', 'qw_trans', 'qx_trans', 'qy_trans', 'qz_trans'});
+    
+        % Accumulate all transformed quaternions
+        q_transformed_all = [q_transformed_all; q_transformed];
+    end
+    
+    % Store results in workspace
+    assignin('base', 'segments_trafo', segments_trafo);
+    assignin('base', 'q_transformed', q_transformed_all);
+    
 %%%%%%% Sonst automatisch Auswertung von Positionsdaten 
 else
 
@@ -348,13 +335,11 @@ else
     segments_ist = array2table([{data_ist.segment_id(1)} data_ist.x_ist(1:idx_new_seg_ist(1)-1) data_ist.y_ist(1:idx_new_seg_ist(1)-1) data_ist.z_ist(1:idx_new_seg_ist(1)-1)], "VariableNames",{'segment_id','x_ist','y_ist','z_ist'});
     
     for i = 1:num_segments
-    
         if i == length(idx_new_seg_ist)
             segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.x_ist(idx_new_seg_ist(i):end) data_ist.y_ist(idx_new_seg_ist(i):end) data_ist.z_ist(idx_new_seg_ist(i):end)]);
         else
             segments_ist(i+1,:) = array2table([{segment_ids{i,:}} data_ist.x_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) data_ist.y_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1) data_ist.z_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1)]);
         end
-    
     end
     
     segments_soll = array2table([{data_soll.segment_id(1)} data_soll.x_soll(1:idx_new_seg_soll(1)-1) data_soll.y_soll(1:idx_new_seg_soll(1)-1) data_soll.z_soll(1:idx_new_seg_soll(1)-1)], "VariableNames",{'segment_id','x_soll','y_soll','z_soll'});
@@ -364,6 +349,13 @@ else
         else
             segments_soll(i+1,:)= array2table([{segment_ids{i,:}} data_soll.x_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) data_soll.y_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1) data_soll.z_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1)]);
         end    
+    end
+    
+    % Koordinatentransformation für alle Segemente
+    segments_trafo = table();
+    for i = 1:1:num_segments+1
+        coord_transformation(segments_ist(i,:),trafo_rot, trafo_trans)
+        segments_trafo(i,:) = pos_ist_trafo;
     end
     
     % Koordinatentransformation für alle Segemente
@@ -413,13 +405,12 @@ for i = 1:1:num_segments
         segment_trafo = segments_ist.tcp_speed_ist{i};
         segment_soll = segments_soll.tcp_speed_soll{i};
     elseif evaluate_velocity == false && evaluate_orientation == true 
-        segment_trafo = [segments_trafo.roll_ist{i}, segments_trafo.pitch_ist{i},  segments_trafo.yaw_ist{i}];
-        segment_soll = [segments_soll.roll_soll{i}, segments_soll.pitch_soll{i}, segments_soll.yaw_soll{i}];
-        % % Winkel von 0-360° statt -180° bis 180°
-        % segment_trafo = mod(segment_trafo,360);
-        % segment_soll = mod(segment_soll,360);
-        segment_trafo = abs(segment_trafo);
-        segment_soll = abs(segment_soll);
+        segment_trafo = [segments_trafo.qx_trans{i}, segments_trafo.qy_trans{i},  segments_trafo.qz_trans{i}, segments_trafo.qw_trans{i}];
+        segment_soll = [segments_soll.qx_soll{i}, segments_soll.qy_soll{i}, segments_soll.qz_soll{i}, segments_soll.qw_soll{i}];
+        
+        segment_trafo = fixGimbalLock(rad2deg(quat2eul(segment_trafo)));
+        segment_soll = fixGimbalLock(rad2deg(quat2eul(segment_soll)));
+       
     end
 
     if size(segment_soll,2) > 1 % Wird nicht betrachtet wenn Geschwindigkeit ausgewertet wird 
@@ -584,30 +575,27 @@ if evaluate_all == true && evaluate_velocity == false
 
     % segment_id = bahn_id; 
 
-
     if evaluate_orientation == true
-        euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
-        % !!!! Zur Sicherheit, damit nicht alle Daten ausgewertet werden !!!!!
-        data_all_ist = euler_trans(1:1000,:);
-        data_ist_trafo = data_all_ist;
-        data_all_soll = euler_soll(1:1000,:);
+        q_transformed_all = transformQuaternion(data_ist, data_soll, q_transform, trafo_rot);
+        
+        % Quaternion-Transformation für die weitere Verarbeitung verwenden
+        data_all_ist = q_transformed_all;
+        data_ist_trafo = fixGimbalLock(rad2deg(quat2eul(data_all_ist)));
+        data_all_soll = [data_soll.qw_soll, data_soll.qx_soll, data_soll.qy_soll, data_soll.qz_soll];
+        data_all_soll = fixGimbalLock(rad2deg(quat2eul(data_all_soll)));
+               
     else 
-        % % !!!! Zur Sicherheit, damit nicht alle Daten ausgewertet werden !!!!!
-        % data_all_ist = data_ist(1:600,:);
-        % data_all_soll = data_soll(1:500,:);
-
-        % Letztes Segment soll nicht ausgewertet werden
-        % Zeilenindex des ersten Auftretens finden
+        % Rest des Codes bleibt gleich...
         last_row_ist = find(data_ist.segment_id == segment_ids{end,1}, 1)-1;
         data_all_ist = data_ist(1:last_row_ist,:);
         last_row_soll = find(data_soll.segment_id == segment_ids{end,1}, 1)-1;
         data_all_soll = data_soll(1:last_row_soll,:);
-
+    
         data_all_ist = table2array(data_all_ist(:,5:7));
         data_all_soll = table2array(data_all_soll(:,5:7));
     
         % Koordinatentrafo für alle Daten 
-        coord_transformation(data_all_ist,trafo_rot, trafo_trans)
+        coord_transformation(data_all_ist, trafo_rot, trafo_trans);
     end
     
     % Euklidischer Abstand
@@ -675,7 +663,7 @@ if evaluate_all == true && evaluate_velocity == false
     clear frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
     clear lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
     clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
-    clear data_ist_trafo
+    %clear data_ist_trafo
 
 end
 
@@ -1161,5 +1149,20 @@ else
 end
 end
 
-
-
+function euler_fixed = fixGimbalLock(euler_angles)
+    euler_fixed = euler_angles;
+    
+    for i = 1:3  % Check each angle component
+        angle_data = euler_angles(:,i);
+        
+        % Check if we have values close to ±180
+        near_180 = abs(abs(angle_data) - 180) < 5;
+        
+        if any(near_180)
+            % If we have values near 180, fix sign flips
+            mask_neg = angle_data < 0;
+            angle_data(mask_neg) = angle_data(mask_neg) + 360;
+            euler_fixed(:,i) = angle_data;
+        end
+    end
+end
