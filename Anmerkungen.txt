@@ -9,4 +9,8 @@ Zeile 111 ff.: Gleiches wie Zeile 85.
 Zeile 377: Hier muss noch in Eulerwinkel umgerechnet oder ein vernünftiger Vergleichswert ausgewählt werden. 
 
 %%% main_auswertung.m
-Zeile 590: Bei evaluate_all wird nur das letzte Segment abgeschnitten! Soll auch das erste?
+Zeile 590: Bei evaluate_all wird nur das letzte Segment abgeschnitten! Soll auch das erste? --> Fixed!
+--> Muss noch in main_loop gefixed werden!
+
+%%% ALLGEMEIN
+Auswertung der Bahnen 1720794824 und 1720794822 löschen!
