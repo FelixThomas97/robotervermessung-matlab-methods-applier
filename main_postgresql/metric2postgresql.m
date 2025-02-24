@@ -23,12 +23,12 @@ if strcmp(metric,'euclidean')
     euclidean_min_distance = min(euclidean_distances);
     euclidean_standard_deviation = std(euclidean_distances);
     
-    % euclidean_x = soll(:,1);
-    % euclidean_y = soll(:,2);
-    % euclidean_z = soll(:,3);
-    % euclidean_x = ist(:,1);
-    % euclidean_y = ist(:,2);
-    % euclidean_z = ist(:,3);
+    ea_soll_x = soll(:,1);
+    ea_soll_y = soll(:,2);
+    ea_soll_z = soll(:,3);
+    ea_ist_x = ist(:,1);
+    ea_ist_y = ist(:,2);
+    ea_ist_z = ist(:,3);
     
     
     % Wenn die Auswertung segmentweise erfolgt
@@ -40,7 +40,7 @@ if strcmp(metric,'euclidean')
         bahn_id = bahn_ids;
         segment_id = segment_ids;
         
-        table_euclidean_distances = table(bahn_id, segment_id,euclidean_distances);
+        table_euclidean_distances = table(bahn_id, segment_id,euclidean_distances, ea_soll_x, ea_soll_y, ea_soll_z, ea_ist_x, ea_ist_y, ea_ist_z);
     % Wenn die Auswertung für die gesamte Messaufnahme erfolgt 
     else
        

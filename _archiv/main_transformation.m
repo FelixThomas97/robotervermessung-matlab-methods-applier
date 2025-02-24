@@ -4,14 +4,14 @@
 
 clear;
 
-bahn_id_ ='1719930393'; % Orientierungsänderung ohne Kalibrierungsdatei
+bahn_id_ ='1721047931'; % Orientierungsänderung ohne Kalibrierungsdatei
 
 % Plotten der Daten 
 plots = true;
 
 % Upload in die Datenbank
 upload_all = false;
-upload_single = true;
+upload_single = false;
 is_pick_and_place = false;  % NEU: Flag für Pick-and-Place Aufgaben
 
 % Verbindung mit PostgreSQL

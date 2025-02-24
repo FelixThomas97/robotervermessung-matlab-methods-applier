@@ -20,7 +20,7 @@ bahn_id_ = '1739349209'; % Bahn mit wenigen Punkten
 evaluate_velocity = 0;
 
 % Berechnung der Metriken für die Orientierungsabweichungen
-evaluate_orientation = 0;
+evaluate_orientation = 1;
 
 % Berechnung der Metriken für bestimmte Bahnabschnitte
 evaluate_segmentwise = false;
@@ -227,8 +227,11 @@ if evaluate_velocity == true && evaluate_orientation == false
     
     end
     
-
-    segments_soll = array2table([{string(bahn_id_)+"_0"} table2array(data_soll(1:idx_new_seg_soll(1)-1,[3,4]))], "VariableNames",{'segment_id','tcp_speed_soll'});
+    if idx_new_seg_soll(1) == 1
+        segments_soll = array2table([{string(bahn_id_)+"_0"} table2array(data_soll(1:idx_new_seg_soll(1),[3,4]))], "VariableNames",{'segment_id','tcp_speed_soll'});
+    else
+        segments_soll = array2table([{string(bahn_id_)+"_0"} table2array(data_soll(1:idx_new_seg_soll(1)-1,[3,4]))], "VariableNames",{'segment_id','tcp_speed_soll'});
+    end
     for i = 1:num_segments
         if i == length(idx_new_seg_soll)
             segments_soll(i+1,:) = array2table([{segment_ids{i,:}} data_soll.tcp_speed_soll(idx_new_seg_soll(i):end)]);
@@ -342,7 +345,11 @@ else
         end
     end
     
-    segments_soll = array2table([{data_soll.segment_id(1)} data_soll.x_soll(1:idx_new_seg_soll(1)-1) data_soll.y_soll(1:idx_new_seg_soll(1)-1) data_soll.z_soll(1:idx_new_seg_soll(1)-1)], "VariableNames",{'segment_id','x_soll','y_soll','z_soll'});
+    if idx_new_seg_soll(1) == 1
+        segments_soll = array2table([{data_soll.segment_id(1)} data_soll.x_soll(1:idx_new_seg_soll(1)) data_soll.y_soll(1:idx_new_seg_soll(1)) data_soll.z_soll(1:idx_new_seg_soll(1))], "VariableNames",{'segment_id','x_soll','y_soll','z_soll'});
+    else
+        segments_soll = array2table([{data_soll.segment_id(1)} data_soll.x_soll(1:idx_new_seg_soll(1)-1) data_soll.y_soll(1:idx_new_seg_soll(1)-1) data_soll.z_soll(1:idx_new_seg_soll(1)-1)], "VariableNames",{'segment_id','x_soll','y_soll','z_soll'});
+    end
     for i = 1:num_segments
         if i == length(idx_new_seg_soll)
             segments_soll(i+1,:) = array2table([{segment_ids{i,:}} data_soll.x_soll(idx_new_seg_soll(i):end) data_soll.y_soll(idx_new_seg_soll(i):end) data_soll.z_soll(idx_new_seg_soll(i):end)]);
@@ -409,7 +416,7 @@ for i = 1:1:num_segments
     if size(segment_soll,2) > 1 % Wird nicht betrachtet wenn Geschwindigkeit ausgewertet wird 
 
     % Berechnung euklidischer Abstand
-    [euclidean_ist,euclidean_distances,~] = distance2curve(segment_trafo,segment_soll,'linear');
+    [euclidean_soll,euclidean_distances,~] = distance2curve(segment_soll,segment_trafo, 'linear');
     % Berechnung LCSS
     [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(segment_soll,segment_trafo,false);
 
@@ -425,7 +432,7 @@ for i = 1:1:num_segments
     if i == 1
         if size(segment_soll,2) > 1
             % Euklidischer Abstand
-            metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, segment_ids{i,:})
+            metric2postgresql('euclidean',euclidean_distances, euclidean_soll, segment_trafo, bahn_id_, segment_ids{i,:})
             table_euclidean_info = seg_euclidean_info;
             order_eucl_first = size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((1:1:order_eucl_first)','VariableNames',{'points_order'})];
@@ -461,7 +468,7 @@ for i = 1:1:num_segments
     else
         if size(segment_soll,2) > 1
             % Euklidischer Abstand
-            metric2postgresql('euclidean',euclidean_distances, segment_soll, euclidean_ist, bahn_id_, segment_ids{i,:})
+            metric2postgresql('euclidean',euclidean_distances, euclidean_soll, segment_trafo, bahn_id_, segment_ids{i,:})
             table_euclidean_info(i,:) = seg_euclidean_info;
             order_eucl_last = order_eucl_first + size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((order_eucl_first+1:1:order_eucl_last)','VariableNames',{'points_order'})];
@@ -558,7 +565,7 @@ clear sidtw sidtw_distances sidtw_ist sidtw_soll seg_sidtw_info seg_sidtw_distan
 clear dtw dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
 clear dfd frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
 clear lcss lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
-clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
+%clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
 clear pos_ist_trafo segment_ist segment_soll segment_trafo i min_diff 
 
 
@@ -596,7 +603,7 @@ if evaluate_all == true && evaluate_velocity == false
     
     % Euklidischer Abstand
     tic
-    [euclidean_ist,euclidean_distances,~] = distance2curve(data_ist_trafo,data_all_soll,'linear');
+    [euclidean_soll,euclidean_distances,~] = distance2curve(data_all_soll, data_ist_trafo, 'linear');
     toc
     disp('Euklidischer Abstand berechnet -->')
 
@@ -621,7 +628,7 @@ if evaluate_all == true && evaluate_velocity == false
     toc
     disp('LCSS berechnet -->')
 
-    metric2postgresql('euclidean', euclidean_distances, data_all_soll, euclidean_ist, bahn_id_,bahn_id_)
+    metric2postgresql('euclidean', euclidean_distances, euclidean_soll, data_ist_trafo, bahn_id_,bahn_id_)
     metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_,bahn_id_)
     metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_,bahn_id_)
     metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_,bahn_id_)
@@ -675,95 +682,95 @@ if evaluate_all == true && evaluate_velocity == false
     clear dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
     clear frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
     clear lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
-    clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
+    %clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
     %clear data_ist_trafo
 
 end
 
-%% Auswertung bestimmter Bahnabschnitte
- 
-if evaluate_segmentwise == true && evaluate_velocity == false
-
-    n = abs(segment_first - segment_last) + 1;
-
-    if evaluate_orientation == true
-        euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
-        data_ist_ = data_ist;
-        data_soll_ = data_soll; 
-        data_ist = euler_trans;
-        data_soll = euler_soll;
-    end
-
-    if segment_first == 0 && segment_last == height(segments_ist) - 1
-        trajectory_ist = data_ist(1:end,:);
-        trajectory_soll = data_soll(1:end,:);
-
-    elseif segment_last == height(segments_ist) - 1 && segment_first > 0
-        trajectory_ist = data_ist(idx_new_seg_ist(segment_first):end,:);
-        trajectory_soll = data_soll(idx_new_seg_soll(segment_first):end,:);
-
-    elseif segment_first == 0 && segment_last < height(segments_ist) - 1
-        trajectory_ist = data_ist(1:idx_new_seg_ist(segment_last+1)-1,:);
-        trajectory_soll = data_soll(1:idx_new_seg_soll(segment_last+1)-1,:);
-
-    elseif segment_first > 0 && segment_first < height(segments_ist) - 2 && segment_last < height(segments_ist) - 1
-
-        trajectory_ist = data_ist(idx_new_seg_ist(segment_first):idx_new_seg_ist(segment_last+1)-1,:);
-        trajectory_soll = data_soll(idx_new_seg_soll(segment_first):idx_new_seg_soll(segment_last+1)-1,:);
-    else
-        error('Die ausgewählten Bahnabschnitte sind in den Daten nicht vorhanden!')
-    end
-    
-    if evaluate_orientation == true
-        data_ist_trafo = trajectory_ist;
-        data_ist = data_ist_; data_soll = data_soll_;
-        clear data_ist_ data_soll_ 
-    else
-        trajectory_ist = table2array(trajectory_ist(:,5:7));
-        trajectory_soll = table2array(trajectory_soll(:,5:7));
-    
-        % Koordinatentransformation
-        coord_transformation(trajectory_ist,trafo_rot, trafo_trans)
-    end
-
-    % Euklidischer Abstand 
-    [euclidean_ist,euclidean_distances,~] = distance2curve(data_ist_trafo,trajectory_soll,'linear');
-    % % SIDTW
-    [sidtw_distances, ~, ~, ~, sidtw_soll, sidtw_ist, ~, ~, ~] = fkt_selintdtw3d(trajectory_soll,data_ist_trafo,false);
-    % DTW
-    [dtw_distances, ~, ~, ~, dtw_soll, dtw_ist, ~, ~, ~, ~] = fkt_dtw3d(trajectory_soll,data_ist_trafo,false);
-    % Frechet 
-    fkt_discreteFrechet(trajectory_soll,data_ist_trafo,false);
-    % LCSS
-    [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(trajectory_soll,data_ist_trafo,false);
-
-    metric2postgresql('euclidean', euclidean_distances, trajectory_soll, euclidean_ist, bahn_id_)
-    metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_)
-    metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_)
-    metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_)
-    metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_)
-
-
-
-    % Anpassung der Spaltennamen für jede Tabelle
-    seg_euclidean_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_sidtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_dtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_dfd_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_lcss_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    
-    trajectory_info = [seg_euclidean_info(1,:); seg_sidtw_info(1,:); seg_dtw_info(1,:); seg_dfd_info(1,:); seg_lcss_info(1,:)];
-
-    trajectory_info.metrik = {'euclidean'; 'sidtw'; 'dtw'; 'dfd'; 'lcss'};
-
-    clear sidtw_distances sidtw_ist sidtw_soll seg_sidtw_info seg_sidtw_distances
-    clear dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
-    clear frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
-    clear lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
-    clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
-    clear data_ist_trafo
-
-end
+% %% Auswertung bestimmter Bahnabschnitte
+% 
+% if evaluate_segmentwise == true && evaluate_velocity == false
+% 
+%     n = abs(segment_first - segment_last) + 1;
+% 
+%     if evaluate_orientation == true
+%         euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
+%         data_ist_ = data_ist;
+%         data_soll_ = data_soll; 
+%         data_ist = euler_trans;
+%         data_soll = euler_soll;
+%     end
+% 
+%     if segment_first == 0 && segment_last == height(segments_ist) - 1
+%         trajectory_ist = data_ist(1:end,:);
+%         trajectory_soll = data_soll(1:end,:);
+% 
+%     elseif segment_last == height(segments_ist) - 1 && segment_first > 0
+%         trajectory_ist = data_ist(idx_new_seg_ist(segment_first):end,:);
+%         trajectory_soll = data_soll(idx_new_seg_soll(segment_first):end,:);
+% 
+%     elseif segment_first == 0 && segment_last < height(segments_ist) - 1
+%         trajectory_ist = data_ist(1:idx_new_seg_ist(segment_last+1)-1,:);
+%         trajectory_soll = data_soll(1:idx_new_seg_soll(segment_last+1)-1,:);
+% 
+%     elseif segment_first > 0 && segment_first < height(segments_ist) - 2 && segment_last < height(segments_ist) - 1
+% 
+%         trajectory_ist = data_ist(idx_new_seg_ist(segment_first):idx_new_seg_ist(segment_last+1)-1,:);
+%         trajectory_soll = data_soll(idx_new_seg_soll(segment_first):idx_new_seg_soll(segment_last+1)-1,:);
+%     else
+%         error('Die ausgewählten Bahnabschnitte sind in den Daten nicht vorhanden!')
+%     end
+% 
+%     if evaluate_orientation == true
+%         data_ist_trafo = trajectory_ist;
+%         data_ist = data_ist_; data_soll = data_soll_;
+%         clear data_ist_ data_soll_ 
+%     else
+%         trajectory_ist = table2array(trajectory_ist(:,5:7));
+%         trajectory_soll = table2array(trajectory_soll(:,5:7));
+% 
+%         % Koordinatentransformation
+%         coord_transformation(trajectory_ist,trafo_rot, trafo_trans)
+%     end
+% 
+%     % Euklidischer Abstand 
+%     [euclidean_ist,euclidean_distances,~] = distance2curve(data_ist_trafo,trajectory_soll,'linear');
+%     % % SIDTW
+%     [sidtw_distances, ~, ~, ~, sidtw_soll, sidtw_ist, ~, ~, ~] = fkt_selintdtw3d(trajectory_soll,data_ist_trafo,false);
+%     % DTW
+%     [dtw_distances, ~, ~, ~, dtw_soll, dtw_ist, ~, ~, ~, ~] = fkt_dtw3d(trajectory_soll,data_ist_trafo,false);
+%     % Frechet 
+%     fkt_discreteFrechet(trajectory_soll,data_ist_trafo,false);
+%     % LCSS
+%     [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(trajectory_soll,data_ist_trafo,false);
+% 
+%     metric2postgresql('euclidean', euclidean_distances, trajectory_soll, euclidean_ist, bahn_id_)
+%     metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_)
+%     metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_)
+%     metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_)
+%     metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_)
+% 
+% 
+% 
+%     % Anpassung der Spaltennamen für jede Tabelle
+%     seg_euclidean_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+%     seg_sidtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+%     seg_dtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+%     seg_dfd_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+%     seg_lcss_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
+% 
+%     trajectory_info = [seg_euclidean_info(1,:); seg_sidtw_info(1,:); seg_dtw_info(1,:); seg_dfd_info(1,:); seg_lcss_info(1,:)];
+% 
+%     trajectory_info.metrik = {'euclidean'; 'sidtw'; 'dtw'; 'dfd'; 'lcss'};
+% 
+%     clear sidtw_distances sidtw_ist sidtw_soll seg_sidtw_info seg_sidtw_distances
+%     clear dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
+%     clear frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
+%     clear lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
+%     %clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
+%     clear data_ist_trafo
+% 
+% end
 
 %% Plotten
 % plots = 1;
@@ -1024,7 +1031,7 @@ if upload == true
 
             % Tabellen mit allen Abweichungen (Spalten umbenennen)
             for i = 1:1:size(table_sidtw_deviation,1)
-                table_euclidean_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','euclidean_deviation','points_order'};      
+                table_euclidean_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','euclidean_deviation','ea_soll_roll','ea_soll_pitch','ea_soll_yaw','ea_ist_roll','ea_ist_pitch','ea_ist_yaw','points_order'};      
                 table_sidtw_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','sidtw_deviation','sidtw_soll_roll','sidtw_soll_pitch','sidtw_soll_yaw','sidtw_ist_roll','sidtw_ist_pitch','sidtw_ist_yaw','points_order'};                                        
                 table_dtw_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','dtw_deviation','dtw_soll_roll','dtw_soll_pitch','dtw_soll_yaw','dtw_ist_roll','dtw_ist_pitch','dtw_ist_yaw','points_order'};                                        
                 table_dfd_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','dfd_deviation','dfd_soll_roll','dfd_soll_pitch','dfd_soll_yaw','dfd_ist_roll','dfd_ist_pitch','dfd_ist_yaw','points_order'};                                        

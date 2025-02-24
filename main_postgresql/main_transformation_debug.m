@@ -2,7 +2,7 @@
 clear;
 
 %bahn_id_ = '1738682877';
-bahn_id_ = '1720784786';% Orientierungsänderung ohne Kalibrierungsdatei
+bahn_id_ = '1739799300';% Orientierungsänderung ohne Kalibrierungsdatei
 %bahn_id_ = '1720784405';
 transform_only = true;    % Nur Transformation und Plot, kein Upload
 plots = true;
@@ -88,6 +88,8 @@ t0 = min(min(ist_times), min(soll_times));
 ist_times_norm = (ist_times - t0) * 1e-9;  % convert to seconds
 soll_times_norm = (soll_times - t0) * 1e-9;
 
+
+findNaNInData(data_cal_soll)
 % Perform quaternion transformation
 [q_transform, q_traj_transformed] = calibrateAndTransformQuaternions(data_cal_ist, data_cal_soll, data_ist, trafo_rot, data_soll);
 
@@ -225,7 +227,6 @@ end
 
 function q_avg = calculateAverageQuaternion(quaternions)
     % Calculate average quaternion using eigenvalue method for better accuracy
-    
     % Form the accumulator matrix
     M = zeros(4,4);
     for i = 1:size(quaternions, 1)
@@ -344,4 +345,20 @@ function plotQuaternionAnalysis(timestamps, quaternion_errors)
     axis off;
     
     sgtitle('Quaternion Transformation Analysis');
+end
+
+function findNaNInData(data_cal_soll)
+    fprintf('\nChecking for NaN values in data_cal_soll:\n');
+    
+    % Get indices of rows with any NaN values
+    nan_rows = find(any(isnan([data_cal_soll.qw_soll, data_cal_soll.qx_soll, ...
+                              data_cal_soll.qy_soll, data_cal_soll.qz_soll]), 2));
+    
+    if isempty(nan_rows)
+        fprintf('No NaN values found.\n');
+    else
+        fprintf('Found NaN values in rows: %s\n', num2str(nan_rows'));
+        fprintf('Total rows with NaN: %d out of %d rows\n', ...
+                length(nan_rows), height(data_cal_soll));
+    end
 end

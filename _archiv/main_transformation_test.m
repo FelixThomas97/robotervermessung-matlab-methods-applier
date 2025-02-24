@@ -2,7 +2,7 @@
 clear;
 
 %bahn_id_ = '1738682877';
-bahn_id_ = '1738828867';% Orientierungsänderung ohne Kalibrierungsdatei
+bahn_id_ = '1721047931';% Orientierungsänderung ohne Kalibrierungsdatei
 %bahn_id_ = '1720784405';
 transform_only = true;    % Nur Transformation und Plot, kein Upload
 plots = true;
@@ -137,8 +137,8 @@ ist_times_norm = (ist_times - t0) * 1e-9;  % converter para segundos
 soll_times_norm = (soll_times - t0) * 1e-9;  % converter para segundos
 
 % Converter quaternions para ângulos de Euler (em radianos)
-euler_ist = quat2eul(q_traj_transformed,'ZYX');
-euler_soll = quat2eul(q_soll, 'ZYX');
+euler_ist = quat2eul(q_traj_transformed,'XYZ');
+euler_soll = quat2eul(q_soll, 'XYZ');
 
 % Converter para graus
 euler_ist_deg = rad2deg(euler_ist);
