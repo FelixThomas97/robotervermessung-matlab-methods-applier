@@ -4,7 +4,7 @@ clear;
 tic;
 
 % bahn_id_ = '172104917';
-bahn_id_ = '1739349209'; % Bahn mit wenigen Punkten
+bahn_id_ = '1739375948'; % Evaluierungsbahn für neue Main
 % bahn_id_ = '171991250';
 % bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
 
@@ -118,8 +118,7 @@ if evaluate_velocity == false && evaluate_orientation == true
 
     % Position data for transformation
     position_ist = table2array(data_ist(:,5:7));
-    
-    
+        
     % Transform position
     coord_transformation(position_ist, trafo_rot, trafo_trans);
     

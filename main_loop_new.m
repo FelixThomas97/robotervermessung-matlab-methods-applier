@@ -185,8 +185,8 @@ clear opts_cal tablename_cal data_cal_ist data_cal_soll
 %% Auslesen der für die entsprechende Auswertung benötigten Daten
 
 % Anzahl der Segmente der gesamten Messaufnahme bestimmen 
-query = ['SELECT * FROM robotervermessung.bewegungsdaten.bahn_info ' ...
-         'WHERE robotervermessung.bewegungsdaten.bahn_info.bahn_id = ''' bahn_id_ ''''];
+query = ['SELECT * FROM robotervermessung.' schema '.bahn_info ' ...
+         'WHERE robotervermessung.' schema '.bahn_info.bahn_id = ''' bahn_id ''''];
 data_info = fetch(conn, query);
 num_segments = data_info.np_ereignisse;
 
