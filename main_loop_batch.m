@@ -1,50 +1,19 @@
-%% Einstellungen
-
-
+%% Einstellungen für Batch-Verarbeitung
 clear;
 tic;
 
-% bahn_id_ = '172104917';
-% bahn_id_ = '171992752'; % Bahn mit wenigen Punkten
-% bahn_id_ = '171991250';
-% bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
-
-% bahn_id_ = '172079653'; % ---> mit Orientierungsänderung
-% bahn_id_ ='172054053'; % Orientierungsänderung ohne Kalibrierungsdatei
-% bahn_id_ = '172079403'; % Kalibrierungsdatei selbst
-
-%%% Standard: --> Berechnung der Metriken für Positionsabweichungen %%%
-
-% Berechnung der Metriken für die Geschwindikeitsabweichungen
+% Konfigurationsparameter
+BATCH_SIZE = 15;           % Anzahl der Bahnen pro Batch
 evaluate_velocity = 0;
-
-% Berechnung der Metriken für die Orientierungsabweichungen
 evaluate_orientation = 0;
-
-% Berechnung der Metriken für bestimmte Bahnabschnitte
 evaluate_segmentwise = false;
-if evaluate_segmentwise
-    segment_first = 1;
-    segment_last = 7;
-end
-% Berechnung der Metriken für die gesamte Messaufnahme
 evaluate_all = true;
-
-% Plotten der Daten 
 plots = false;
-
-% Upload in die Datenbank
 upload = true;
-upload_info = true;        % Info-Tabellen hochladen
-upload_deviations = true;  % Abweichungs-Tabellen hochladen
+upload_info = true;
+upload_deviations = true;
 
-
-% % Verbindung mit PostgreSQL
-% datasource = "RobotervermessungMATLAB";
-% username = "postgres";
-% password = "200195Beto";
-% conn = postgresql(datasource,username,password);
-% Verbindung mit PostgreSQL
+% Datenbankverbindung herstellen
 datasource = "RobotervermessungMATLAB";
 username = "felixthomas";
 password = "manager";
@@ -55,116 +24,482 @@ if isopen(conn)
     disp('Verbindung erfolgreich hergestellt');
 else
     disp('Verbindung fehlgeschlagen');
+    return;
 end
 
 clear datasource username password
-%% Schleife um alle Daten auszuwerten 
 
-query = 'SELECT bahn_id FROM robotervermessung.bewegungsdaten.bahn_info WHERE pick_and_place = true';
+%% Schleife um alle Daten auszuwerten 
+query = 'SELECT bahn_id FROM robotervermessung.bewegungsdaten.bahn_info WHERE pick_and_place = true AND calibration_run = false';
 bahn_ids = fetch(conn, query);
 bahn_ids = double(string(table2array(bahn_ids)));
-
-% Nur nach 10stelligen BahnIds suchen
-log_idx = floor(log10(bahn_ids)) == 9;
-bahn_ids = bahn_ids(log_idx);
 
 % Check ob Orientierung, Geschwindigkeit oder Position ausgewertet wird 
 if evaluate_orientation == true && evaluate_velocity == false 
     query = "SELECT bahn_id FROM robotervermessung.auswertung.orientation_sidtw";
-    % query = "SELECT bahn_id FROM robotervermessung.auswertung.info_euclidean WHERE evaluation = 'position'";
-end
-if evaluate_velocity == true && evaluate_orientation == false
+elseif evaluate_velocity == true && evaluate_orientation == false
     query = "SELECT bahn_id FROM robotervermessung.auswertung.speed_sidtw";
-end
-if evaluate_orientation == false && evaluate_velocity == false
+else
     query = "SELECT bahn_id FROM robotervermessung.auswertung.position_sidtw";
-    % query = "SELECT bahn_id FROM robotervermessung.auswertung.info_euclidean WHERE evaluation = 'position'";
 end
 
 % Extrahieren aller Bahn-ID's die in der Datenbank vorliegen
-existing_bahn_ids = fetch(conn,query);
+existing_bahn_ids = fetch(conn, query);
 existing_bahn_ids = double(string(table2array(existing_bahn_ids)));
 existing_bahn_ids = unique(existing_bahn_ids);
 
-%% 
+%% Bestimmen der zu verarbeitenden Bahnen
+unprocessed_bahn_ids = bahn_ids(~ismember(bahn_ids, existing_bahn_ids));
+disp(['Anzahl der zu verarbeitenden Bahnen: ', num2str(length(unprocessed_bahn_ids))]);
 
-% Berechnung und hochladen aller aufgezeichneten Bahnen
-% for j = 55:1:height(bahn_ids)
-for j = 1:1:height(bahn_ids)
+%% Batch-Verarbeitung mit Upload nach jedem Batch
+num_batches = ceil(length(unprocessed_bahn_ids) / BATCH_SIZE);
+disp(['Verarbeitung in ', num2str(num_batches), ' Batches mit je max. ', num2str(BATCH_SIZE), ' Bahnen']);
 
-bahn_id_ = convertStringsToChars(string(bahn_ids(j)));
-if ~ismember(bahn_ids(j),existing_bahn_ids)
+% Bestimme den Evaluationstyp
+if evaluate_velocity == false && evaluate_orientation == false
+    evaluation_type = 'position';
+elseif evaluate_velocity == false && evaluate_orientation == true
+    evaluation_type = 'orientation';
+elseif evaluate_velocity == true && evaluate_orientation == false
+    evaluation_type = 'speed';
+end
 
-tic;
-%% Suche nach zugehörigem "Calibration Run"
+% Tracking der verarbeiteten IDs
+all_processed_ids = [];
 
-disp('Datei: '+string(j)+' Auswertung der Datei: ' + string(bahn_id_))
+for batch_num = 1:num_batches
+    batch_start_time = datetime('now');
+    batch_start_idx = (batch_num-1) * BATCH_SIZE + 1;
+    batch_end_idx = min(batch_num * BATCH_SIZE, length(unprocessed_bahn_ids));
+    
+    current_batch_ids = unprocessed_bahn_ids(batch_start_idx:batch_end_idx);
+    disp(['Verarbeite Batch ', num2str(batch_num), ' von ', num2str(num_batches), ...
+          ' (Bahnen ', num2str(batch_start_idx), '-', num2str(batch_end_idx), ' von ', ...
+          num2str(length(unprocessed_bahn_ids)), ')']);
+    
+    % Verarbeite den Batch (nur Berechnungen, kein Upload)
+    [batch_processed_ids, batch_euclidean_info, batch_sidtw_info, batch_dtw_info, batch_dfd_info, batch_lcss_info, ...
+     batch_euclidean_deviations, batch_sidtw_deviations, batch_dtw_deviations, batch_dfd_deviations, batch_lcss_deviations] = ...
+        processBatchWithoutUpload(conn, current_batch_ids, evaluate_velocity, evaluate_orientation, ...
+                               evaluate_segmentwise, evaluate_all, plots);
+    
+    all_processed_ids = [all_processed_ids; batch_processed_ids];
+    
+    % Upload der aktuellen Batch-Daten
+    if upload && ~isempty(batch_processed_ids)
+        upload_start_time = datetime('now');
+        disp(['Starte Upload für Batch ', num2str(batch_num), ' mit ', num2str(length(batch_processed_ids)), ' Bahnen...']);
+        
+        % Info-Tabellen hochladen
+        if upload_info
+            disp('Lade Info-Tabellen im Batch hoch...');
+            if ~isempty(batch_sidtw_info)
+                batchUpload2PostgreSQL('robotervermessung.auswertung.info_sidtw', batch_sidtw_info, evaluation_type, conn);
+            end
+            if ~isempty(batch_dtw_info)
+                batchUpload2PostgreSQL('robotervermessung.auswertung.info_dtw', batch_dtw_info, evaluation_type, conn);
+            end
+            if ~isempty(batch_dfd_info)
+                batchUpload2PostgreSQL('robotervermessung.auswertung.info_dfd', batch_dfd_info, evaluation_type, conn);
+            end
+            if evaluate_velocity == false
+                if ~isempty(batch_euclidean_info)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.info_euclidean', batch_euclidean_info, evaluation_type, conn);
+                end
+                if ~isempty(batch_lcss_info)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.info_lcss', batch_lcss_info, evaluation_type, conn);
+                end
+            end
+            disp('Info-Tabellen erfolgreich hochgeladen!');
+        end
+        
+        % Abweichungs-Tabellen hochladen
+        if upload_deviations
+            disp('Lade Abweichungs-Tabellen im Batch hoch...');
+            if evaluate_orientation == true && evaluate_velocity == false
+                if ~isempty(batch_euclidean_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.orientation_euclidean', batch_euclidean_deviations, evaluation_type, conn);
+                end
+                if ~isempty(batch_sidtw_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.orientation_sidtw', batch_sidtw_deviations, evaluation_type, conn);
+                end
+                if ~isempty(batch_dtw_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.orientation_dtw', batch_dtw_deviations, evaluation_type, conn);
+                end
+                if ~isempty(batch_dfd_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.orientation_dfd', batch_dfd_deviations, evaluation_type, conn);
+                end
+                if ~isempty(batch_lcss_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.orientation_lcss', batch_lcss_deviations, evaluation_type, conn);
+                end
+            elseif evaluate_velocity == true && evaluate_orientation == false
+                if ~isempty(batch_sidtw_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.speed_sidtw', batch_sidtw_deviations, evaluation_type, conn);
+                end
+                if ~isempty(batch_dtw_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.speed_dtw', batch_dtw_deviations, evaluation_type, conn);
+                end
+                if ~isempty(batch_dfd_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.speed_dfd', batch_dfd_deviations, evaluation_type, conn);
+                end
+            else
+                if ~isempty(batch_euclidean_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.position_euclidean', batch_euclidean_deviations, evaluation_type, conn);
+                end
+                if ~isempty(batch_sidtw_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.position_sidtw', batch_sidtw_deviations, evaluation_type, conn);
+                end
+                if ~isempty(batch_dtw_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.position_dtw', batch_dtw_deviations, evaluation_type, conn);
+                end
+                if ~isempty(batch_dfd_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.position_dfd', batch_dfd_deviations, evaluation_type, conn);
+                end
+                if ~isempty(batch_lcss_deviations)
+                    batchUpload2PostgreSQL('robotervermessung.auswertung.position_lcss', batch_lcss_deviations, evaluation_type, conn);
+                end
+            end
+            disp('Abweichungs-Tabellen erfolgreich hochgeladen!');
+        end
+        
+        upload_end_time = datetime('now');
+        upload_duration = seconds(upload_end_time - upload_start_time);
+        disp(['Batch-Upload abgeschlossen in ', num2str(upload_duration), ' Sekunden!']);
+    end
+    
+    % Speicher freigeben
+    clear batch_euclidean_info batch_sidtw_info batch_dtw_info batch_dfd_info batch_lcss_info;
+    clear batch_euclidean_deviations batch_sidtw_deviations batch_dtw_deviations batch_dfd_deviations batch_lcss_deviations;
+    
+    batch_end_time = datetime('now');
+    batch_duration = seconds(batch_end_time - batch_start_time);
+    disp(['Batch ', num2str(batch_num), ' abgeschlossen in ', num2str(batch_duration), ' Sekunden']);
+end
 
-schema = 'bewegungsdaten';
+total_duration = toc;
+disp(['Gesamte Verarbeitung abgeschlossen in ', num2str(total_duration), ' Sekunden']);
+disp(['Durchschnittliche Zeit pro Bahn: ', num2str(total_duration/length(all_processed_ids)), ' Sekunden']);
 
-% Suche nach passender Kalibrierungsdatei
-[calibration_id, is_calibration_run] = findCalibrationRun(conn, bahn_id_, schema);
+function batchUpload2PostgreSQL(tablename, data, evaluation_type, conn)
+    try
+        % Combine cell data if needed
+        if iscell(data)
+            try
+                data = vertcat(data{:});
+            catch e
+                disp(['Fehler beim Kombinieren der Zell-Daten: ' e.message]);
+                % Process each cell individually
+                for i = 1:length(data)
+                    if ~isempty(data{i})
+                        sqlwrite(conn, tablename, data{i});
+                    end
+                end
+                return;
+            end
+        end
+        
+        % Standardize data
+        data = standardizeTableData(data);
+        
+        % Get total rows for progress tracking
+        total_rows = height(data);
+        disp(['Lade ' num2str(total_rows) ' Zeilen in ' tablename ' hoch...']);
+        
+        % Optimierte Einstellungen für Bulk-Import
+        execute(conn, 'SET synchronous_commit = off');
+        
+        try
+            % Manuell Transaktion starten
+            execute(conn, 'BEGIN');
+            
+            % Optimierter Multi-Row Insert
+            batchInsertMultipleRows(conn, tablename, data);
+            
+            % Commit transaction
+            execute(conn, 'COMMIT');
+            execute(conn, 'SET synchronous_commit = on');
+            disp(['Erfolgreich ' num2str(total_rows) ' Zeilen in ' tablename ' hochgeladen']);
+            
+        catch inner_e
+            % Rollback on error
+            execute(conn, 'ROLLBACK');
+            execute(conn, 'SET synchronous_commit = on');
+            disp(['Fehler beim Batch-Upload, versuche Einzelzeilenmodus: ' inner_e.message]);
+            
+            % Try again with explicit INSERT statements for smaller batches
+            batch_size = 250;
+            for i = 1:batch_size:total_rows
+                try
+                    end_idx = min(i + batch_size - 1, total_rows);
+                    current_batch = data(i:end_idx, :);
+                    insertWithExplicitSQL(conn, tablename, current_batch);
+                    
+                    if mod(i, 500) == 0 || i == 1
+                        disp(['Alternative Methode: ' num2str(end_idx) ' von ' num2str(total_rows)]);
+                    end
+                catch batch_e
+                    disp(['Fehler bei Zeilen ' num2str(i) '-' num2str(end_idx) ': ' batch_e.message]);
+                end
+            end
+        end
+        
+    catch e
+        disp(['Fehler beim Hochladen der Daten: ' e.message]);
+        disp('Stack Trace:');
+        disp(getReport(e, 'extended'));
+    end
+end
 
-% Extrahieren der Kalibrierungs-Daten
-tablename_cal = ['robotervermessung.' schema '.bahn_pose_ist'];
-opts_cal = databaseImportOptions(conn,tablename_cal);
-opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
-data_cal_ist= sqlread(conn,tablename_cal,opts_cal);
-data_cal_ist = sortrows(data_cal_ist,'timestamp');
+function batchInsertMultipleRows(conn, tablename, data)
+    % Get column names
+    colNames = strjoin(data.Properties.VariableNames, ',');
+    
+    % Use multiple VALUES sets in a single statement
+    batchSize = 10000; % Größe anpassen basierend auf Ihren Daten
+    total_rows = height(data);
+    
+    for i = 1:batchSize:total_rows
+        % Start building INSERT statement
+        insertSql = ['INSERT INTO ' tablename ' (' colNames ') VALUES '];
+        
+        % Determine end index for this batch
+        end_idx = min(i + batchSize - 1, total_rows);
+        current_batch = data(i:end_idx, :);
+        
+        % Build values part with multiple rows
+        valueStrings = cell(height(current_batch), 1);
+        for j = 1:height(current_batch)
+            rowValues = formatRowValues(current_batch(j,:));
+            valueStrings{j} = ['(' rowValues ')'];
+        end
+        
+        % Combine into final SQL
+        insertSql = [insertSql strjoin(valueStrings, ', ')];
+        
+        % Execute the multi-row insert
+        execute(conn, insertSql);
+        
+        % Show progress
+        if mod(end_idx, batchSize*5) == 0 || end_idx == total_rows
+            disp(['Hochgeladen: ' num2str(end_idx) ' von ' num2str(total_rows) ' Zeilen (' num2str(round(100*end_idx/total_rows)) '%)']);
+        end
+    end
+end
 
-tablename_cal = ['robotervermessung.' schema '.bahn_events'];
-opts_cal = databaseImportOptions(conn,tablename_cal);
-opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
-data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
-data_cal_soll = sortrows(data_cal_soll,'timestamp');
+% Alternative method using explicit SQL INSERT for small batches
+function insertWithExplicitSQL(conn, tablename, data)
+    % Get column names
+    colNames = strjoin(data.Properties.VariableNames, ', ');
+    
+    % Process up to 10 rows at a time
+    for i = 1:10:height(data)
+        end_idx = min(i + 9, height(data));
+        current_rows = data(i:end_idx, :);
+        
+        % Build INSERT statement
+        insertSql = ['INSERT INTO ' tablename ' (' colNames ') VALUES '];
+        
+        valueStrings = cell(height(current_rows), 1);
+        for j = 1:height(current_rows)
+            rowValues = formatRowValues(current_rows(j,:));
+            valueStrings{j} = ['(' rowValues ')'];
+        end
+        
+        insertSql = [insertSql strjoin(valueStrings, ', ')];
+        
+        % Execute insert
+        execute(conn, insertSql);
+    end
+end
 
-% Positionsdaten für Koordinatentransformation
-calibration(data_cal_ist,data_cal_soll, plots)
+function valueStr = formatRowValues(row)
+    values = cell(1, width(row));
+    
+    for i = 1:width(row)
+        val = row{1,i};
+        
+        if ischar(val) || isstring(val)
+            values{i} = ['''' strrep(char(val), '''', '''''') ''''];
+        elseif iscell(val)
+            if isempty(val)
+                values{i} = 'NULL';
+            else
+                values{i} = ['''' strrep(char(val{1}), '''', '''''') ''''];
+            end
+        elseif isnumeric(val)
+            if isnan(val)
+                values{i} = 'NULL';
+            else
+                values{i} = num2str(val);
+            end
+        else
+            values{i} = 'NULL';
+        end
+    end
+    
+    valueStr = strjoin(values, ', ');
+end
 
-%%%%%%%% Alte Version des Calibration-Run %%%%%%%%%
-% query_cal = 'SELECT * FROM robotervermessung.bewegungsdaten.bahn_info WHERE robotervermessung.bewegungsdaten.bahn_info.calibration_run = true';
-% 
-% % Abfrage ausführen und Ergebnisse abrufen
-% data_cal_info = fetch(conn, query_cal);
-% 
-% % Aktuelles Aufnahmedatum aus bahn_info holen
-% query_current = sprintf('SELECT recording_date FROM robotervermessung.bewegungsdaten.bahn_info WHERE bahn_id = ''%s''', bahn_id_);
-% current_date_info = fetch(conn, query_current);
-% current_datetime = datetime(current_date_info.recording_date, 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');    
-% % Initialisierung der Variablen für die beste Übereinstimmung
-% best_time_diff = Inf;
-% calibration_id = bahn_id_;  % Default: aktuelle Bahn-ID
-% found_calibration = false;
-% 
-% % Durchsuche alle Calibration Runs
-% for i = 1:height(data_cal_info)
-%     cal_datetime = datetime(data_cal_info.recording_date(i), 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSSSSS');
-% 
-%     % Prüfe ob gleicher Tag und Calibration Run zeitlich davor liegt
-%     if dateshift(cal_datetime, 'start', 'day') == dateshift(current_datetime, 'start', 'day') && ...
-%        cal_datetime < current_datetime
-% 
-%         time_diff = seconds(current_datetime - cal_datetime);
-% 
-%         % Update beste Übereinstimmung wenn dieser Run näher liegt
-%         if time_diff < best_time_diff
-%             best_time_diff = time_diff;
-%             calibration_id = char(data_cal_info.bahn_id(i));
-%             found_calibration = true;
-%         end
-%     end
-% end
-% 
-% % Wenn eine Kalibierungsdatei vorliegt wird diese für die
-% % Koordinatentransformation genutzt, ansonsten die wird die gewählte Datei
-% % selbst verwendet. 
-% if found_calibration
-%     disp('Kalibrierungs-Datei vorhanden! ID der Messaufnahme: ' + string(calibration_id))
-% else
-%     calibration_id = bahn_id_;
-%     disp('Zu dem ausgewählten Datensatz liegt keine Kalibrierungsdatei vom gleichen Tag vor!')
-% end
-%%%%%%%%%%%%%
+% Hilfsfunktion zum Standardisieren der Daten
+function standardizedData = standardizeTableData(data)
+    % Überprüfe jede Spalte auf konsistente Datentypen
+    for col = 1:width(data)
+        colName = data.Properties.VariableNames{col};
+        colData = data.(colName);
+        
+        % Wenn es sich um eine Zellen-Spalte handelt
+        if iscell(colData)
+            % Prüfe auf Zellen, die selbst Zellen enthalten
+            hasNestedCells = false;
+            for i = 1:length(colData)
+                if iscell(colData{i})
+                    hasNestedCells = true;
+                    break;
+                end
+            end
+            
+            if hasNestedCells
+                % Unneste die Zellen
+                newColData = cell(size(colData));
+                for i = 1:length(colData)
+                    if iscell(colData{i}) && ~isempty(colData{i})
+                        newColData{i} = colData{i}{1};
+                    else
+                        newColData{i} = colData{i};
+                    end
+                end
+                data.(colName) = newColData;
+            end
+        end
+    end
+    
+    standardizedData = data;
+end
+
+function [processed_ids, batch_euclidean_info, batch_sidtw_info, batch_dtw_info, batch_dfd_info, batch_lcss_info, ...
+          batch_euclidean_deviations, batch_sidtw_deviations, batch_dtw_deviations, batch_dfd_deviations, batch_lcss_deviations] = ...
+    processBatchWithoutUpload(conn, batch_ids, evaluate_velocity, evaluate_orientation, ...
+                         evaluate_segmentwise, evaluate_all, plots)
+    % Initialisiere Batch-Sammlungen
+    all_calibration_ids = {};
+    all_segment_ids = {};
+    
+    % Tabellen für jede Metrik initialisieren
+    batch_euclidean_info = table();
+    batch_sidtw_info = table();
+    batch_dtw_info = table();
+    batch_dfd_info = table();
+    batch_lcss_info = table();
+    
+    % Sammlungen für Abweichungsdaten
+    batch_euclidean_deviations = {};
+    batch_sidtw_deviations = {};
+    batch_dtw_deviations = {};
+    batch_dfd_deviations = {};
+    batch_lcss_deviations = {};
+    
+    % Verarbeitete BahnIDs für diesen Batch
+    processed_ids = [];
+    
+    % Bestimme den Evaluationstyp
+    if evaluate_velocity == false && evaluate_orientation == false
+        evaluation_type = 'position';
+    elseif evaluate_velocity == false && evaluate_orientation == true
+        evaluation_type = 'orientation';
+    elseif evaluate_velocity == true && evaluate_orientation == false
+        evaluation_type = 'speed';
+    end
+    
+    % Schleife über alle Bahnen im Batch
+    for i = 1:length(batch_ids)
+        bahn_id_ = num2str(batch_ids(i));
+        disp(['Verarbeite Bahn ', num2str(i), ' von ', num2str(length(batch_ids)), ': ', bahn_id_]);
+        
+        try
+            % Suche nach zugehörigem "Calibration Run"
+            [calibration_id, is_calibration_run] = findCalibrationRun(conn, bahn_id_, 'bewegungsdaten');
+            
+            % Extrahiere und verarbeite die Daten für diese Bahn
+            [table_euclidean_info, table_sidtw_info, table_dtw_info, table_dfd_info, table_lcss_info, ...
+             table_euclidean_deviation, table_sidtw_deviation, table_dtw_deviation, ...
+             table_dfd_deviation, table_lcss_deviation, segment_ids] = ...
+                processSingleTrajectory(conn, bahn_id_, calibration_id, evaluate_velocity, ...
+                                       evaluate_orientation, evaluate_segmentwise, evaluate_all, plots, evaluation_type);
+            
+            % Sammle die Daten für den Batch-Upload
+            processed_ids = [processed_ids; str2double(bahn_id_)];
+            all_calibration_ids{end+1} = calibration_id;
+            all_segment_ids{end+1} = segment_ids;
+            
+            % Sammle Info-Tabellen
+            if ~isempty(table_euclidean_info)
+                batch_euclidean_info = [batch_euclidean_info; table_euclidean_info];
+            end
+            if ~isempty(table_sidtw_info)
+                batch_sidtw_info = [batch_sidtw_info; table_sidtw_info];
+            end
+            if ~isempty(table_dtw_info)
+                batch_dtw_info = [batch_dtw_info; table_dtw_info];
+            end
+            if ~isempty(table_dfd_info)
+                batch_dfd_info = [batch_dfd_info; table_dfd_info];
+            end
+            if ~isempty(table_lcss_info)
+                batch_lcss_info = [batch_lcss_info; table_lcss_info];
+            end
+            
+            % Sammle Abweichungsdaten
+            if ~isempty(table_euclidean_deviation)
+                batch_euclidean_deviations = [batch_euclidean_deviations; table_euclidean_deviation];
+            end
+            if ~isempty(table_sidtw_deviation)
+                batch_sidtw_deviations = [batch_sidtw_deviations; table_sidtw_deviation];
+            end
+            if ~isempty(table_dtw_deviation)
+                batch_dtw_deviations = [batch_dtw_deviations; table_dtw_deviation];
+            end
+            if ~isempty(table_dfd_deviation)
+                batch_dfd_deviations = [batch_dfd_deviations; table_dfd_deviation];
+            end
+            if ~isempty(table_lcss_deviation)
+                batch_lcss_deviations = [batch_lcss_deviations; table_lcss_deviation];
+            end
+            
+            disp(['Bahn ', bahn_id_, ' erfolgreich verarbeitet']);
+        catch e
+            warning(['Fehler bei der Verarbeitung von Bahn ', bahn_id_, ': ', e.message]);
+            % Protokolliere den Fehler und mache mit der nächsten Bahn weiter
+            continue;
+        end
+    end
+end
+
+
+
+function [table_euclidean_info, table_sidtw_info, table_dtw_info, table_dfd_info, table_lcss_info, ...
+          table_euclidean_deviation, table_sidtw_deviation, table_dtw_deviation, ...
+          table_dfd_deviation, table_lcss_deviation, segment_ids] = ...
+              processSingleTrajectory(conn, bahn_id_, calibration_id, evaluate_velocity, ...
+                                      evaluate_orientation, evaluate_segmentwise, evaluate_all, plots, evaluation_type)
+    % Hier sollte der eigentliche Verarbeitungscode des vorhandenen Skripts eingebaut werden,
+    % aber ohne den Upload-Teil. Der Upload erfolgt später gesammelt.
+    
+    % Extrahieren der Kalibrierungs-Daten
+    tablename_cal = 'robotervermessung.bewegungsdaten.bahn_pose_ist';
+    opts_cal = databaseImportOptions(conn, tablename_cal);
+    opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
+    data_cal_ist = sqlread(conn, tablename_cal, opts_cal);
+    data_cal_ist = sortrows(data_cal_ist, 'timestamp');
+    
+    tablename_cal = 'robotervermessung.bewegungsdaten.bahn_events';
+    opts_cal = databaseImportOptions(conn, tablename_cal);
+    opts_cal.RowFilter = opts_cal.RowFilter.bahn_id == calibration_id;
+    data_cal_soll = sqlread(conn, tablename_cal, opts_cal);
+    data_cal_soll = sortrows(data_cal_soll, 'timestamp');
+    
+    % Positionsdaten für Koordinatentransformation
+    [trafo_rot, trafo_trans, ~] = calibration(data_cal_ist, data_cal_soll, plots);
 
 if evaluate_orientation == true
     % Wenn Orientierung wird andere Collection benötigt
@@ -178,9 +513,7 @@ if evaluate_orientation == true
     calibrateQuaternion(data_cal_ist, data_cal_soll);
 end
 
-
 clear opts_cal tablename_cal data_cal_ist data_cal_soll
-
 
 %% Auslesen der für die entsprechende Auswertung benötigten Daten
 
@@ -204,12 +537,6 @@ if evaluate_velocity == false && evaluate_orientation == true
             'WHERE robotervermessung.' schema '.bahn_orientation_soll.bahn_id = ''' bahn_id_ ''''];
     data_soll = fetch(conn, query);
     data_soll = sortrows(data_soll,'timestamp');
-
-    % % Transformation der Quarternionen zu Euler-Winkeln
-    % q_soll = table2array(data_soll(:,5:8));
-    % q_soll = [q_soll(:,4), q_soll(:,1), q_soll(:,2), q_soll(:,3)];
-    % euler_soll = quat2eul(q_soll,"XYZ");
-    % euler_soll = rad2deg(euler_soll);
     
     q_ist = table2array(data_ist(:,8:11));
     q_ist = [q_ist(:,4), q_ist(:,1), q_ist(:,2), q_ist(:,3)];
@@ -220,7 +547,7 @@ if evaluate_velocity == false && evaluate_orientation == true
     position_ist = table2array(data_ist(:,5:7));
        
     % Transform position
-    coord_transformation(position_ist, trafo_rot, trafo_trans);
+    pos_ist_trafo = coord_transformation(position_ist, trafo_rot, trafo_trans);
     
     q_transformed = transformQuaternion(data_ist, data_soll, q_transform, trafo_rot);
 
@@ -243,7 +570,6 @@ elseif evaluate_velocity == true && evaluate_orientation == false
 
     % Geschwindigkeitsdaten präperieren 
     velocity_prep(data_soll, data_ist)
-
 
 else
     % Auslesen der gesamten Ist-Daten
@@ -341,38 +667,6 @@ if evaluate_velocity == true && evaluate_orientation == false
 elseif evaluate_velocity == false && evaluate_orientation == true
 
     disp('Es wird die Orientierung ausgewertet!')
-
-%%%%%%% Alte Version
-    % % Speichern der einzelnen Semgente in Tabelle
-    % segments_ist = array2table([{data_ist.segment_id(1)} euler_ist(1:idx_new_seg_ist(1)-1,1) euler_ist(1:idx_new_seg_ist(1)-1,2) euler_ist(1:idx_new_seg_ist(1)-1,3)], "VariableNames",{'segment_id','roll_ist','pitch_ist','yaw_ist'});
-    % 
-    % for i = 1:num_segments
-    % 
-    %     if i == length(idx_new_seg_ist)
-    %         segments_ist(i+1,:) = array2table([{segment_ids{i,:}} euler_ist(idx_new_seg_ist(i):end,1) euler_ist(idx_new_seg_ist(i):end,2) euler_ist(idx_new_seg_ist(i):end,3)]);
-    %     else
-    %         segments_ist(i+1,:) = array2table([{segment_ids{i,:}} euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,1) euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,2) euler_ist(idx_new_seg_ist(i):idx_new_seg_ist(i+1)-1,3)]);
-    %     end
-    % 
-    % end
-    % 
-    % segments_soll = array2table([{data_soll.segment_id(1)} euler_soll(1:idx_new_seg_soll(1)-1,1) euler_soll(1:idx_new_seg_soll(1)-1,2) euler_soll(1:idx_new_seg_soll(1)-1,3)], "VariableNames",{'segment_id','roll_soll','pitch_soll','yaw_soll'});
-    % for i = 1:num_segments
-    %     if i == length(idx_new_seg_soll)
-    %         segments_soll(i+1,:) = array2table([{segment_ids{i,:}} euler_soll(idx_new_seg_soll(i):end,1) euler_soll(idx_new_seg_soll(i):end,2) euler_soll(idx_new_seg_soll(i):end,3)]);
-    %     else
-    %         segments_soll(i+1,:)= array2table([{segment_ids{i,:}} euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,1) euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,2) euler_soll(idx_new_seg_soll(i):idx_new_seg_soll(i+1)-1,3)]);
-    %     end    
-    % end
-    % 
-    % % Transformation der Eulerwinkel für alle Segemente
-    % segments_trafo = table();
-    % for i = 1:1:num_segments+1
-    %     euler_transformation(segments_ist(i,:),segments_soll(i,:), trafo_euler, trafo_rot)
-    %     % % Winkel von 0-360° statt -180° bis 180°
-    %     segments_trafo(i,:) = seg_trafo;
-    % end
-%%%%%%%%%%%%%%%%%
 
     % First segment IST data (quaternions)
     segments_ist = array2table([{data_ist.segment_id(1)} ...
@@ -507,7 +801,7 @@ else
     % Koordinatentransformation für alle Segemente
     segments_trafo = table();
     for i = 1:1:num_segments+1
-        coord_transformation(segments_ist(i,:),trafo_rot, trafo_trans)
+        pos_ist_trafo = coord_transformation(segments_ist(i,:),trafo_rot, trafo_trans);
         segments_trafo(i,:) = pos_ist_trafo;
     end
 
@@ -551,15 +845,7 @@ for i = 1:1:num_segments
         segment_trafo = segments_ist.tcp_speed_ist{i};
         segment_soll = segments_soll.tcp_speed_soll{i};
     elseif evaluate_velocity == false && evaluate_orientation == true 
-%%%%%%% Alte Version
-        % segment_trafo = [segments_trafo.roll_ist{i}, segments_trafo.pitch_ist{i},  segments_trafo.yaw_ist{i}];
-        % segment_soll = [segments_soll.roll_soll{i}, segments_soll.pitch_soll{i}, segments_soll.yaw_soll{i}];
-        % % % Winkel von 0-360° statt -180° bis 180°
-        % % segment_trafo = mod(segment_trafo,360);
-        % % segment_soll = mod(segment_soll,360);
-        % segment_trafo = abs(segment_trafo);
-        % segment_soll = abs(segment_soll);
-%%%%%%%%%%%
+
         segment_trafo = [segments_trafo.qx_trans{i}, segments_trafo.qy_trans{i},  segments_trafo.qz_trans{i}, segments_trafo.qw_trans{i}];
         segment_soll = [segments_soll.qx_soll{i}, segments_soll.qy_soll{i}, segments_soll.qz_soll{i}, segments_soll.qw_soll{i}];
         
@@ -580,39 +866,39 @@ for i = 1:1:num_segments
     % Berechnung DTW
     [dtw_distances, ~, ~, ~, dtw_soll, dtw_ist, ~, ~, ~, ~] = fkt_dtw3d(segment_soll,segment_trafo,false);
     % Berechnung diskrete Frechet
-    fkt_discreteFrechet(segment_soll,segment_trafo,false)
+    [~, ~, frechet_distances, ~, ~, frechet_soll, frechet_ist] = fkt_discreteFrechet(segment_soll,segment_trafo,false);
 
 
     if i == 1
         if size(segment_soll,2) > 1
             % Euklidischer Abstand
-            metric2postgresql('euclidean',euclidean_distances, euclidean_soll, segment_trafo, bahn_id_, segment_ids{i,:})
+            [seg_euclidean_info, seg_euclidean_distances] = metric2postgresql('euclidean',euclidean_distances, euclidean_soll, segment_trafo, bahn_id_, segment_ids{i,:});
             table_euclidean_info = seg_euclidean_info;
             order_eucl_first = size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((1:1:order_eucl_first)','VariableNames',{'points_order'})];
             table_euclidean_deviation{1} = seg_euclidean_distances;
             % LCSS
-            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:})
+            [seg_lcss_info, seg_lcss_distances] = metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:});
             table_lcss_info = seg_lcss_info;
             order_lcss_first = size(seg_lcss_distances,1);
             seg_lcss_distances = [seg_lcss_distances, table((1:1:order_lcss_first)','VariableNames',{'points_order'})];
             table_lcss_deviation{1} = seg_lcss_distances;
         end
         % SIDTW
-        metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:})
+        [seg_sidtw_info, seg_sidtw_distances] = metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:});
         table_sidtw_info = seg_sidtw_info;
         order_sidtw_first = size(seg_sidtw_distances,1);
         seg_sidtw_distances = [seg_sidtw_distances, table((1:1:order_sidtw_first)','VariableNames',{'points_order'})];
         table_sidtw_deviation{1} = seg_sidtw_distances;
 
         % DTW
-        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:})
+        [seg_dtw_info, seg_dtw_distances] = metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:});
         table_dtw_info = seg_dtw_info;
         order_dtw_first = size(seg_dtw_distances,1);
         seg_dtw_distances = [seg_dtw_distances, table((1:1:order_dtw_first)','VariableNames',{'points_order'})];
         table_dtw_deviation{1} = seg_dtw_distances;
         % DFD
-        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:})
+        [seg_dfd_info, seg_dfd_distances] = metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:});
         table_dfd_info = seg_dfd_info;
         order_dfd_first = size(seg_dfd_distances,1);
         seg_dfd_distances = [seg_dfd_distances, table((1:1:order_dfd_first)','VariableNames',{'points_order'})];
@@ -622,14 +908,14 @@ for i = 1:1:num_segments
     else
         if size(segment_soll,2) > 1
             % Euklidischer Abstand
-            metric2postgresql('euclidean',euclidean_distances, euclidean_soll, segment_trafo, bahn_id_, segment_ids{i,:})
+            [seg_euclidean_info, seg_euclidean_distances] = metric2postgresql('euclidean',euclidean_distances, euclidean_soll, segment_trafo, bahn_id_, segment_ids{i,:});
             table_euclidean_info(i,:) = seg_euclidean_info;
             order_eucl_last = order_eucl_first + size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((order_eucl_first+1:1:order_eucl_last)','VariableNames',{'points_order'})];
             order_eucl_first = order_eucl_last;
             table_euclidean_deviation{i} = seg_euclidean_distances;
             % LCSS
-            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:})
+            [seg_lcss_info, seg_lcss_distances] = metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:});
             table_lcss_info(i,:) = seg_lcss_info;
             order_lcss_last = order_lcss_first + size(seg_lcss_distances,1);
             seg_lcss_distances = [seg_lcss_distances, table((order_lcss_first+1:1:order_lcss_last)','VariableNames',{'points_order'})];
@@ -637,21 +923,21 @@ for i = 1:1:num_segments
             table_lcss_deviation{i} = seg_lcss_distances;
         end
         % SIDTW
-        metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:})
+        [seg_sidtw_info, seg_sidtw_distances] = metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:});
         table_sidtw_info(i,:) = seg_sidtw_info;
         order_sidtw_last = order_sidtw_first + size(seg_sidtw_distances,1);
         seg_sidtw_distances = [seg_sidtw_distances, table((order_sidtw_first+1:1:order_sidtw_last)','VariableNames',{'points_order'})];
         order_sidtw_first = order_sidtw_last;
         table_sidtw_deviation{i} = seg_sidtw_distances;
         % DTW
-        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:})
+        [seg_dtw_info, seg_dtw_distances] = metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:});
         table_dtw_info(i,:) = seg_dtw_info;
         order_dtw_last = order_dtw_first + size(seg_dtw_distances,1);
         seg_dtw_distances = [seg_dtw_distances, table((order_dtw_first+1:1:order_dtw_last)','VariableNames',{'points_order'})];
         order_dtw_first = order_dtw_last;
         table_dtw_deviation{i} = seg_dtw_distances;
         % DFD
-        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:})
+        [seg_dfd_info, seg_dfd_distances] = metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:});
         table_dfd_info(i,:) = seg_dfd_info;
         order_dfd_last = order_dfd_first + size(seg_dfd_distances,1);
         seg_dfd_distances = [seg_dfd_distances, table((order_dfd_first+1:1:order_dfd_last)','VariableNames',{'points_order'})];
@@ -724,19 +1010,38 @@ clear lcss lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
 clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
 clear pos_ist_trafo segment_ist segment_soll segment_trafo i min_diff 
 
-
 %% Auswertung der gesamten Messaufnahme 
 
 if evaluate_all == true && evaluate_velocity == false
 
     % segment_id = bahn_id;
 
-    % Segment 0 und das letzte Segment abschneiden 
-    first_row_ist = find(data_ist.segment_id == segment_ids{1,1}, 1);
-    last_row_ist = find(data_ist.segment_id == segment_ids{end,1}, 1)-1;
+    % Zuerst die segment_ids richtig sortieren (numerisch nach der Zahl nach dem Unterstrich)
+    segment_ids_array = table2array(segment_ids);
+    segment_ids_numeric = zeros(size(segment_ids_array));
+    
+    for i = 1:length(segment_ids_array)
+        tokens = regexp(segment_ids_array{i}, '_(\d+)$', 'tokens', 'once');
+        if ~isempty(tokens)
+            segment_ids_numeric(i) = str2double(tokens{1});
+        end
+    end
+    
+    [~, sort_idx] = sort(segment_ids_numeric);
+    sorted_segment_ids = segment_ids_array(sort_idx);
+    
+    % Jetzt das erste und letzte Segment basierend auf den sortierten IDs abschneiden
+    first_segment = sorted_segment_ids{1};
+    last_segment = sorted_segment_ids{end};
+    
+    % Daten für IST filtern
+    first_row_ist = find(data_ist.segment_id == first_segment, 1);
+    last_row_ist = find(data_ist.segment_id == last_segment, 1) - 1;
     data_all_ist = data_ist(first_row_ist:last_row_ist,:);
-    first_row_soll = find(data_soll.segment_id == segment_ids{1,1}, 1);
-    last_row_soll = find(data_soll.segment_id == segment_ids{end,1}, 1)-1;
+    
+    % Daten für SOLL filtern
+    first_row_soll = find(data_soll.segment_id == first_segment, 1);
+    last_row_soll = find(data_soll.segment_id == last_segment, 1) - 1;
     data_all_soll = data_soll(first_row_soll:last_row_soll,:);
 
 
@@ -753,7 +1058,7 @@ if evaluate_all == true && evaluate_velocity == false
         data_all_soll = table2array(data_all_soll(:,5:7));
     
         % Koordinatentrafo für alle Daten 
-        coord_transformation(data_all_ist, trafo_rot, trafo_trans);
+        data_ist_trafo = coord_transformation(data_all_ist, trafo_rot, trafo_trans);
     end
     
     % Euklidischer Abstand
@@ -774,7 +1079,7 @@ if evaluate_all == true && evaluate_velocity == false
     disp('DTW berechnet -->')
     % Frechet 
     tic
-    fkt_discreteFrechet(data_all_soll,data_ist_trafo,false);
+    [~, ~, frechet_distances, ~, ~, frechet_soll, frechet_ist] = fkt_discreteFrechet(data_all_soll,data_ist_trafo,false);
     toc
     disp('DFD berechnet -->')
     % LCSS
@@ -783,11 +1088,11 @@ if evaluate_all == true && evaluate_velocity == false
     toc
     disp('LCSS berechnet -->')
 
-    metric2postgresql('euclidean', euclidean_distances, data_all_soll, euclidean_ist, bahn_id_,bahn_id_)
-    metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_,bahn_id_)
-    metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_,bahn_id_)
-    metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_,bahn_id_)
-    metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_,bahn_id_)
+    [seg_euclidean_info, seg_euclidean_distances] = metric2postgresql('euclidean', euclidean_distances, data_all_soll, euclidean_ist, bahn_id_,bahn_id_);
+    [seg_sidtw_info, seg_sidtw_distances] = metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_,bahn_id_);
+    [seg_dtw_info, seg_dtw_distances] = metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_,bahn_id_);
+    [seg_dfd_info, seg_dfd_distances] = metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_,bahn_id_);
+    [seg_lcss_info, seg_lcss_distances] = metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_,bahn_id_);
 
     % Info Tabellen hinzufügen
     table_euclidean_info = [seg_euclidean_info; table_euclidean_info];
@@ -842,91 +1147,6 @@ if evaluate_all == true && evaluate_velocity == false
 
 end
 
-%% Auswertung bestimmter Bahnabschnitte
- 
-if evaluate_segmentwise == true && evaluate_velocity == false
-
-    n = abs(segment_first - segment_last) + 1;
-
-    if evaluate_orientation == true
-        euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
-        data_ist_ = data_ist;
-        data_soll_ = data_soll; 
-        data_ist = euler_trans;
-        data_soll = euler_soll;
-    end
-
-    if segment_first == 0 && segment_last == height(segments_ist) - 1
-        trajectory_ist = data_ist(1:end,:);
-        trajectory_soll = data_soll(1:end,:);
-
-    elseif segment_last == height(segments_ist) - 1 && segment_first > 0
-        trajectory_ist = data_ist(idx_new_seg_ist(segment_first):end,:);
-        trajectory_soll = data_soll(idx_new_seg_soll(segment_first):end,:);
-
-    elseif segment_first == 0 && segment_last < height(segments_ist) - 1
-        trajectory_ist = data_ist(1:idx_new_seg_ist(segment_last+1)-1,:);
-        trajectory_soll = data_soll(1:idx_new_seg_soll(segment_last+1)-1,:);
-
-    elseif segment_first > 0 && segment_first < height(segments_ist) - 2 && segment_last < height(segments_ist) - 1
-
-        trajectory_ist = data_ist(idx_new_seg_ist(segment_first):idx_new_seg_ist(segment_last+1)-1,:);
-        trajectory_soll = data_soll(idx_new_seg_soll(segment_first):idx_new_seg_soll(segment_last+1)-1,:);
-    else
-        error('Die ausgewählten Bahnabschnitte sind in den Daten nicht vorhanden!')
-    end
-    
-    if evaluate_orientation == true
-        data_ist_trafo = trajectory_ist;
-        data_ist = data_ist_; data_soll = data_soll_;
-        clear data_ist_ data_soll_ 
-    else
-        trajectory_ist = table2array(trajectory_ist(:,5:7));
-        trajectory_soll = table2array(trajectory_soll(:,5:7));
-    
-        % Koordinatentransformation
-        coord_transformation(trajectory_ist,trafo_rot, trafo_trans)
-    end
-
-    % Euklidischer Abstand 
-    [euclidean_ist,euclidean_distances,~] = distance2curve(data_ist_trafo,trajectory_soll,'linear');
-    % % SIDTW
-    [sidtw_distances, ~, ~, ~, sidtw_soll, sidtw_ist, ~, ~, ~] = fkt_selintdtw3d(trajectory_soll,data_ist_trafo,false);
-    % DTW
-    [dtw_distances, ~, ~, ~, dtw_soll, dtw_ist, ~, ~, ~, ~] = fkt_dtw3d(trajectory_soll,data_ist_trafo,false);
-    % Frechet 
-    fkt_discreteFrechet(trajectory_soll,data_ist_trafo,false);
-    % LCSS
-    [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(trajectory_soll,data_ist_trafo,false);
-
-    metric2postgresql('euclidean', euclidean_distances, trajectory_soll, euclidean_ist, bahn_id_)
-    metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_)
-    metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_)
-    metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_)
-    metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_)
-
-
-
-    % Anpassung der Spaltennamen für jede Tabelle
-    seg_euclidean_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_sidtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_dtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_dfd_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    seg_lcss_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-    
-    trajectory_info = [seg_euclidean_info(1,:); seg_sidtw_info(1,:); seg_dtw_info(1,:); seg_dfd_info(1,:); seg_lcss_info(1,:)];
-
-    trajectory_info.metrik = {'euclidean'; 'sidtw'; 'dtw'; 'dfd'; 'lcss'};
-
-    clear sidtw_distances sidtw_ist sidtw_soll seg_sidtw_info seg_sidtw_distances
-    clear dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
-    clear frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
-    clear lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
-    clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
-    clear data_ist_trafo
-
-end
-
 %% Plotten
 if plots == true
     % Farben
@@ -945,7 +1165,7 @@ if plots == true && evaluate_velocity == false && evaluate_orientation == false
     soll = table2array(data_soll(:,5:7));
     
     % Koordinatentrafo für alle Daten 
-    coord_transformation(ist,trafo_rot, trafo_trans)
+    data_ist_trafo = coord_transformation(ist,trafo_rot, trafo_trans)
     ist = data_ist_trafo; 
     clear data_ist_trafo
     
@@ -1144,194 +1364,36 @@ end
 
 clear c1 c2 c3 c4 c5 c6 c7 segment_first segment_last n i f0 f1 f2 k1 k2 time
 
-toc;
-
-
-%% Ergebnisse in die Datenbank hochladen
-
-
-if evaluate_all == true
-    first_id = table(string(bahn_id_),'VariableNames',"segment_id");
-    segment_ids = [first_id; segment_ids];
+% Bestimme den Evaluationstyp basierend auf den Funktionsparametern
+if evaluate_velocity == false && evaluate_orientation == false
+    evaluation_type = 'position';
+elseif evaluate_velocity == false && evaluate_orientation == true
+    evaluation_type = 'orientation';
+elseif evaluate_velocity == true && evaluate_orientation == false
+    evaluation_type = 'speed';
 end
-clear first_id
 
-if upload == true
-    tic;
-    disp('Upload erfolgt!')
-
-    if evaluate_velocity == false && evaluate_orientation == false
-
-        type = {'position'};
-        % Info Tabellen 
-        table_euclidean_info = addvars(table_euclidean_info,repelem(type,height(table_euclidean_info),1),'NewVariableNames','evaluation');
-        table_sidtw_info = addvars(table_sidtw_info,repelem(type,height(table_sidtw_info),1),'NewVariableNames','evaluation');
-        table_dtw_info = addvars(table_dtw_info,repelem(type,height(table_dtw_info),1),'NewVariableNames','evaluation');
-        table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
-        table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
-
-    end
-
-    if evaluate_velocity == false && evaluate_orientation == true  
-
-        type = {'orientation'};
-        % Info Tabellen 
-        table_euclidean_info = addvars(table_euclidean_info,repelem(type,height(table_euclidean_info),1),'NewVariableNames','evaluation');
-        table_sidtw_info = addvars(table_sidtw_info,repelem(type,height(table_sidtw_info),1),'NewVariableNames','evaluation');
-        table_dtw_info = addvars(table_dtw_info,repelem(type,height(table_dtw_info),1),'NewVariableNames','evaluation');
-        table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
-        table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
-
-        % Tabellen mit allen Abweichungen (Spalten umbenennen)
-        for i = 1:1:size(table_sidtw_deviation,1)
-            table_euclidean_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','euclidean_deviation', 'ea_soll_roll', 'ea_soll_pitch', 'ea_soll_yaw', 'ea_ist_roll', 'ea_ist_pitch', 'ea_ist_yaw', 'points_order'};      
-            table_sidtw_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','sidtw_deviation','sidtw_soll_roll','sidtw_soll_pitch','sidtw_soll_yaw','sidtw_ist_roll','sidtw_ist_pitch','sidtw_ist_yaw','points_order'};                                        
-            table_dtw_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','dtw_deviation','dtw_soll_roll','dtw_soll_pitch','dtw_soll_yaw','dtw_ist_roll','dtw_ist_pitch','dtw_ist_yaw','points_order'};                                        
-            table_dfd_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','dfd_deviation','dfd_soll_roll','dfd_soll_pitch','dfd_soll_yaw','dfd_ist_roll','dfd_ist_pitch','dfd_ist_yaw','points_order'};                                        
-            table_lcss_deviation{i}.Properties.VariableNames = {'bahn_id','segment_id','lcss_deviation','lcss_soll_roll','lcss_soll_pitch','lcss_soll_yaw','lcss_ist_roll','lcss_ist_pitch','lcss_ist_yaw','points_order'};                                        
-        end
-    end
-
-    if evaluate_velocity == true && evaluate_orientation == false
-
-        type = {'speed'};
-        % Info Tabellen 
-        table_sidtw_info = addvars(table_sidtw_info,repelem(type,height(table_sidtw_info),1),'NewVariableNames','evaluation');
-        table_dtw_info = addvars(table_dtw_info,repelem(type,height(table_dtw_info),1),'NewVariableNames','evaluation');
-        table_dfd_info = addvars(table_dfd_info,repelem(type,height(table_dfd_info),1),'NewVariableNames','evaluation');
-        % table_euclidean_info = addvars(table_euclidean_info,repelem(type,height(table_euclidean_info),1),'NewVariableNames','evaluation');
-        % table_lcss_info = addvars(table_lcss_info,repelem(type,height(table_lcss_info),1),'NewVariableNames','evaluation');
-        % Tabellen mit allen Abweichungen
-        for i = 1:1:size(table_sidtw_deviation,1)
-            table_sidtw_deviation{i}.Properties.VariableNames{3} = 'sidtw_deviation';
-            table_dtw_deviation{i}.Properties.VariableNames{3} = 'dtw_deviation';
-            table_dfd_deviation{i}.Properties.VariableNames{3} = 'dfd_deviation';
-            % table_euclidean_deviation{i}.Properties.VariableNames{3} = 'euclidean_deviation';
-            % table_lcss_deviation{i}.Properties.VariableNames{3} = 'lcss_deviation';
-        end
-    end
-    %% Schreiben in die Datenbank
-    
-    % Info Tabellen
-    if upload_info == true
-        upload2postgresql('robotervermessung.auswertung.info_sidtw',table_sidtw_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.info_dtw',table_dtw_info,segment_ids,type{1},conn)
-        upload2postgresql('robotervermessung.auswertung.info_dfd',table_dfd_info,segment_ids,type{1},conn)
-        if evaluate_velocity == false
-            upload2postgresql('robotervermessung.auswertung.info_euclidean',table_euclidean_info,segment_ids,type{1},conn)
-            upload2postgresql('robotervermessung.auswertung.info_lcss',table_lcss_info,segment_ids,type{1},conn)
-        end
-        disp('Info-Tabellen erfolgreich hochgeladen!')
-    end
-
-    % Abweichungs-Tabellen
-    if upload_deviations
-        disp('Lade Abweichungs-Tabellen hoch...')
-        if evaluate_orientation == true && evaluate_velocity == false                                          
-            upload2postgresql('robotervermessung.auswertung.orientation_euclidean',table_euclidean_deviation,segment_ids,type{1},conn)
-            disp('Euclidean Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.orientation_sidtw',table_sidtw_deviation,segment_ids,type{1},conn)
-            disp('SIDTW Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.orientation_dtw',table_dtw_deviation,segment_ids,type{1},conn)
-            disp('DTW Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.orientation_dfd',table_dfd_deviation,segment_ids,type{1},conn)
-            disp('DFD Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.orientation_lcss',table_lcss_deviation,segment_ids,type{1},conn)
-            disp('LCSS Deviation hochgeladen')
-        % Abweichungen der Geschwindigkeiten
-        elseif evaluate_velocity == true && evaluate_orientation == false
-            upload2postgresql('robotervermessung.auswertung.speed_sidtw',table_sidtw_deviation,segment_ids,type{1},conn)
-            disp('SIDTW Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.speed_dtw',table_dtw_deviation,segment_ids,type{1},conn)
-            disp('DTW Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.speed_dfd',table_dfd_deviation,segment_ids,type{1},conn)
-            disp('DFD Deviation hochgeladen')
-        % Abweichungen der Positionen
-        else
-            upload2postgresql('robotervermessung.auswertung.position_euclidean',table_euclidean_deviation,segment_ids,type{1},conn)
-            disp('Euclidean Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.position_sidtw',table_sidtw_deviation,segment_ids,type{1},conn)
-            disp('SIDTW Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.position_dtw',table_dtw_deviation,segment_ids,type{1},conn)
-            disp('DTW Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.position_dfd',table_dfd_deviation,segment_ids,type{1},conn)
-            disp('DFD Deviation hochgeladen')
-            upload2postgresql('robotervermessung.auswertung.position_lcss',table_lcss_deviation,segment_ids,type{1},conn)
-            disp('LCSS Deviation hochgeladen')
-        end
-        disp('Abweichungs-Tabellen erfolgreich hochgeladen!')
-    end
-
-    disp('Der Upload war erfolgreich!')
-else
-    disp('Upload fehlgeschlagen!')
+% Füge die evaluation-Spalte zu allen Info-Tabellen hinzu
+if ~isempty(table_euclidean_info)
+    table_euclidean_info = addvars(table_euclidean_info, repelem({evaluation_type}, height(table_euclidean_info), 1), 'NewVariableNames', 'evaluation');
 end
-toc;
 
-else
-    disp('Datei: '+string(j)+" mit der Bahn-ID "+ string(bahn_id_+ " lag bereits vor!"))
-end % ENDE der IF-Abrage ob Datei schon vorliegt
-
-% Löschen der Variablen (Wichtig!)
-clearvars -except conn evaluate_all evaluate_orientation evaluate_velocity evaluate_segmentwise plots upload upload_info upload_deviations existing_bahn_ids bahn_ids
-
-end % ENDE der FOR-Schleife
-
-
-%%
-
-function upload2postgresql(tablename,table,segment_ids,evaluation,conn)
-
-% Abfrage ob der Eintrag der gesamten Bahn bereits existiert
-if iscell(table)
-    checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}));
-else
-    checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE bahn_id = '%s' AND evaluation = '%s'", tablename, convertCharsToStrings(table{1,1}{1,1}), evaluation);
+if ~isempty(table_sidtw_info)
+    table_sidtw_info = addvars(table_sidtw_info, repelem({evaluation_type}, height(table_sidtw_info), 1), 'NewVariableNames', 'evaluation');
 end
-duplicates = fetch(conn, checkQuery);
-entryExists = duplicates{1,1} > 0;
 
-if entryExists == false
-    
-    % Daten der Segmente als eine einzige Tabelle schreiben
-    if iscell(table)
-        table = vertcat(table{:});
-    end
-
-    % Schreiben der gesamten Tabelle in die Datenbank
-    sqlwrite(conn,tablename,table)
-else
-    
-    % Segmentweise prüfen wenn Eintrag bereits existiert
-    for i = 1:1:size(segment_ids,1)-1
-
-        % Abfrage ob der Eintrag eines Segmentes bereits existiert
-        if iscell(table)
-            checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s'", tablename, segment_ids{i,1});
-        else
-            checkQuery = sprintf("SELECT COUNT(*) FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
-        end
-        duplicates = fetch(conn, checkQuery);
-        entryExists = duplicates{1,1} > 0;
-
-        % Lösche Daten falls diese bereits existieren
-        if entryExists == true
-            if iscell(table)
-                deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s'", tablename, segment_ids{i,1});
-            else
-                deleteQuery = sprintf("DELETE FROM %s WHERE segment_id = '%s' AND evaluation = '%s'", tablename, segment_ids{i,1}, evaluation);
-            end
-            execute(conn, deleteQuery);
-        end
-
-        if iscell(table)
-            % Schreiben/Überschreiben der Daten in die Datenbank
-            sqlwrite(conn,tablename,table{i,:})
-        else          
-            sqlwrite(conn,tablename,table(i,:))
-        end
-    end
+if ~isempty(table_dtw_info)
+    table_dtw_info = addvars(table_dtw_info, repelem({evaluation_type}, height(table_dtw_info), 1), 'NewVariableNames', 'evaluation');
 end
+
+if ~isempty(table_dfd_info)
+    table_dfd_info = addvars(table_dfd_info, repelem({evaluation_type}, height(table_dfd_info), 1), 'NewVariableNames', 'evaluation');
+end
+
+if ~isempty(table_lcss_info)
+    table_lcss_info = addvars(table_lcss_info, repelem({evaluation_type}, height(table_lcss_info), 1), 'NewVariableNames', 'evaluation');
+end
+
 end
 
 function euler_fixed = fixGimbalLock(euler_angles)

@@ -4,7 +4,7 @@ clear;
 tic;
 
 % bahn_id_ = '172104917';
-bahn_id_ = '1739349209'; % Bahn mit wenigen Punkten
+bahn_id_ = '1739274902'; % Bahn mit wenigen Punkten
 % bahn_id_ = '171991250';
 % bahn_id_ = '172104925'; % ---> mit Orientierungsänderung 
 
@@ -20,7 +20,7 @@ bahn_id_ = '1739349209'; % Bahn mit wenigen Punkten
 evaluate_velocity = 0;
 
 % Berechnung der Metriken für die Orientierungsabweichungen
-evaluate_orientation = 1;
+evaluate_orientation = 0;
 
 % Berechnung der Metriken für bestimmte Bahnabschnitte
 evaluate_segmentwise = false;
@@ -32,10 +32,12 @@ end
 evaluate_all = true; %% immer true!
 
 % Plotten der Daten 
-plots = false;
+plots = true;
 
 % Upload in die Datenbank
-upload = true;
+upload = false;
+
+
 
 
 datasource = "RobotervermessungMATLAB";
@@ -72,7 +74,7 @@ data_cal_soll = sqlread(conn,tablename_cal,opts_cal);
 data_cal_soll = sortrows(data_cal_soll,'timestamp');
 
 % Positionsdaten für Koordinatentransformation
-calibration(data_cal_ist,data_cal_soll, plots)
+[trafo_rot, trafo_trans, ~] = calibration(data_cal_ist,data_cal_soll, plots);
 
 if evaluate_orientation == true
     % Wenn Orientierung wird andere Collection benötigt
@@ -121,7 +123,7 @@ if evaluate_velocity == false && evaluate_orientation == true
     
     
     % Transform position
-    coord_transformation(position_ist, trafo_rot, trafo_trans);
+    pos_ist_trafo = coord_transformation(position_ist, trafo_rot, trafo_trans);
     
     q_transformed = transformQuaternion(data_ist, data_soll, q_transform, trafo_rot);
 
@@ -361,7 +363,7 @@ else
     % Koordinatentransformation für alle Segemente
     segments_trafo = table();
     for i = 1:1:num_segments+1
-        coord_transformation(segments_ist(i,:),trafo_rot, trafo_trans)
+        pos_ist_trafo = coord_transformation(segments_ist(i,:),trafo_rot, trafo_trans);
         segments_trafo(i,:) = pos_ist_trafo;
     end
 
@@ -426,39 +428,39 @@ for i = 1:1:num_segments
     % Berechnung DTW
     [dtw_distances, ~, ~, ~, dtw_soll, dtw_ist, ~, ~, ~, ~] = fkt_dtw3d(segment_soll,segment_trafo,false);
     % Berechnung diskrete Frechet
-    fkt_discreteFrechet(segment_soll,segment_trafo,false)
+    [~, ~, frechet_distances, ~, ~, frechet_soll, frechet_ist] = fkt_discreteFrechet(segment_soll,segment_trafo,false);
 
 
     if i == 1
         if size(segment_soll,2) > 1
             % Euklidischer Abstand
-            metric2postgresql('euclidean',euclidean_distances, euclidean_soll, segment_trafo, bahn_id_, segment_ids{i,:})
+            [seg_euclidean_info, seg_euclidean_distances] = metric2postgresql('euclidean',euclidean_distances, euclidean_soll, segment_trafo, bahn_id_, segment_ids{i,:});
             table_euclidean_info = seg_euclidean_info;
             order_eucl_first = size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((1:1:order_eucl_first)','VariableNames',{'points_order'})];
             table_euclidean_deviation{1} = seg_euclidean_distances;
             % LCSS
-            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:})
+            [seg_lcss_info, seg_lcss_distances] = metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:});
             table_lcss_info = seg_lcss_info;
             order_lcss_first = size(seg_lcss_distances,1);
             seg_lcss_distances = [seg_lcss_distances, table((1:1:order_lcss_first)','VariableNames',{'points_order'})];
             table_lcss_deviation{1} = seg_lcss_distances;
         end
         % SIDTW
-        metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:})
+        [seg_sidtw_info, seg_sidtw_distances] = metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:});
         table_sidtw_info = seg_sidtw_info;
         order_sidtw_first = size(seg_sidtw_distances,1);
         seg_sidtw_distances = [seg_sidtw_distances, table((1:1:order_sidtw_first)','VariableNames',{'points_order'})];
         table_sidtw_deviation{1} = seg_sidtw_distances;
 
         % DTW
-        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:})
+        [seg_dtw_info, seg_dtw_distances] = metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:});
         table_dtw_info = seg_dtw_info;
         order_dtw_first = size(seg_dtw_distances,1);
         seg_dtw_distances = [seg_dtw_distances, table((1:1:order_dtw_first)','VariableNames',{'points_order'})];
         table_dtw_deviation{1} = seg_dtw_distances;
         % DFD
-        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:})
+        [seg_dfd_info, seg_dfd_distances] = metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:});
         table_dfd_info = seg_dfd_info;
         order_dfd_first = size(seg_dfd_distances,1);
         seg_dfd_distances = [seg_dfd_distances, table((1:1:order_dfd_first)','VariableNames',{'points_order'})];
@@ -468,14 +470,14 @@ for i = 1:1:num_segments
     else
         if size(segment_soll,2) > 1
             % Euklidischer Abstand
-            metric2postgresql('euclidean',euclidean_distances, euclidean_soll, segment_trafo, bahn_id_, segment_ids{i,:})
+            [seg_euclidean_info, seg_euclidean_distances] = metric2postgresql('euclidean',euclidean_distances, euclidean_soll, segment_trafo, bahn_id_, segment_ids{i,:});
             table_euclidean_info(i,:) = seg_euclidean_info;
             order_eucl_last = order_eucl_first + size(seg_euclidean_distances,1);
             seg_euclidean_distances = [seg_euclidean_distances, table((order_eucl_first+1:1:order_eucl_last)','VariableNames',{'points_order'})];
             order_eucl_first = order_eucl_last;
             table_euclidean_deviation{i} = seg_euclidean_distances;
             % LCSS
-            metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:})
+            [seg_lcss_info, seg_lcss_distances] = metric2postgresql('lcss',lcss_distances, lcss_soll, lcss_ist, bahn_id_, segment_ids{i,:});
             table_lcss_info(i,:) = seg_lcss_info;
             order_lcss_last = order_lcss_first + size(seg_lcss_distances,1);
             seg_lcss_distances = [seg_lcss_distances, table((order_lcss_first+1:1:order_lcss_last)','VariableNames',{'points_order'})];
@@ -483,21 +485,21 @@ for i = 1:1:num_segments
             table_lcss_deviation{i} = seg_lcss_distances;
         end
         % SIDTW
-        metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:})
+        [seg_sidtw_info, seg_sidtw_distances] = metric2postgresql('sidtw',sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_, segment_ids{i,:});
         table_sidtw_info(i,:) = seg_sidtw_info;
         order_sidtw_last = order_sidtw_first + size(seg_sidtw_distances,1);
         seg_sidtw_distances = [seg_sidtw_distances, table((order_sidtw_first+1:1:order_sidtw_last)','VariableNames',{'points_order'})];
         order_sidtw_first = order_sidtw_last;
         table_sidtw_deviation{i} = seg_sidtw_distances;
         % DTW
-        metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:})
+        [seg_dtw_info, seg_dtw_distances] = metric2postgresql('dtw',dtw_distances, dtw_soll, dtw_ist, bahn_id_, segment_ids{i,:});
         table_dtw_info(i,:) = seg_dtw_info;
         order_dtw_last = order_dtw_first + size(seg_dtw_distances,1);
         seg_dtw_distances = [seg_dtw_distances, table((order_dtw_first+1:1:order_dtw_last)','VariableNames',{'points_order'})];
         order_dtw_first = order_dtw_last;
         table_dtw_deviation{i} = seg_dtw_distances;
         % DFD
-        metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:})
+        [seg_dfd_info, seg_dfd_distances] = metric2postgresql('dfd',frechet_distances, frechet_soll, frechet_ist, bahn_id_, segment_ids{i,:})
         table_dfd_info(i,:) = seg_dfd_info;
         order_dfd_last = order_dfd_first + size(seg_dfd_distances,1);
         seg_dfd_distances = [seg_dfd_distances, table((order_dfd_first+1:1:order_dfd_last)','VariableNames',{'points_order'})];
@@ -565,7 +567,7 @@ clear sidtw sidtw_distances sidtw_ist sidtw_soll seg_sidtw_info seg_sidtw_distan
 clear dtw dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
 clear dfd frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
 clear lcss lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
-%clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
+clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
 clear pos_ist_trafo segment_ist segment_soll segment_trafo i min_diff 
 
 
@@ -575,12 +577,32 @@ if evaluate_all == true && evaluate_velocity == false
 
     % segment_id = bahn_id; 
 
-    % Segment 0 und das letzte Segment abschneiden 
-    first_row_ist = find(data_ist.segment_id == segment_ids{1,1}, 1);
-    last_row_ist = find(data_ist.segment_id == segment_ids{end,1}, 1)-1;
+    % Zuerst die segment_ids richtig sortieren (numerisch nach der Zahl nach dem Unterstrich)
+    segment_ids_array = table2array(segment_ids);
+    segment_ids_numeric = zeros(size(segment_ids_array));
+    
+    for i = 1:length(segment_ids_array)
+        tokens = regexp(segment_ids_array{i}, '_(\d+)$', 'tokens', 'once');
+        if ~isempty(tokens)
+            segment_ids_numeric(i) = str2double(tokens{1});
+        end
+    end
+    
+    [~, sort_idx] = sort(segment_ids_numeric);
+    sorted_segment_ids = segment_ids_array(sort_idx);
+    
+    % Jetzt das erste und letzte Segment basierend auf den sortierten IDs abschneiden
+    first_segment = sorted_segment_ids{1};
+    last_segment = sorted_segment_ids{end};
+    
+    % Daten für IST filtern
+    first_row_ist = find(data_ist.segment_id == first_segment, 1);
+    last_row_ist = find(data_ist.segment_id == last_segment, 1) - 1;
     data_all_ist = data_ist(first_row_ist:last_row_ist,:);
-    first_row_soll = find(data_soll.segment_id == segment_ids{1,1}, 1);
-    last_row_soll = find(data_soll.segment_id == segment_ids{end,1}, 1)-1;
+    
+    % Daten für SOLL filtern
+    first_row_soll = find(data_soll.segment_id == first_segment, 1);
+    last_row_soll = find(data_soll.segment_id == last_segment, 1) - 1;
     data_all_soll = data_soll(first_row_soll:last_row_soll,:);
 
     if evaluate_orientation == true
@@ -598,7 +620,7 @@ if evaluate_all == true && evaluate_velocity == false
         data_all_soll = table2array(data_all_soll(:,5:7));
     
         % Koordinatentrafo für alle Daten 
-        coord_transformation(data_all_ist, trafo_rot, trafo_trans);
+        data_ist_trafo = coord_transformation(data_all_ist, trafo_rot, trafo_trans);
     end
     
     % Euklidischer Abstand
@@ -619,7 +641,7 @@ if evaluate_all == true && evaluate_velocity == false
     disp('DTW berechnet -->')
     % Frechet 
     tic
-    fkt_discreteFrechet(data_all_soll,data_ist_trafo,false);
+    [~, ~, frechet_distances, ~, ~, frechet_soll, frechet_ist] = fkt_discreteFrechet(data_all_soll,data_ist_trafo,false);
     toc
     disp('DFD berechnet -->')
     % LCSS
@@ -628,11 +650,11 @@ if evaluate_all == true && evaluate_velocity == false
     toc
     disp('LCSS berechnet -->')
 
-    metric2postgresql('euclidean', euclidean_distances, euclidean_soll, data_ist_trafo, bahn_id_,bahn_id_)
-    metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_,bahn_id_)
-    metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_,bahn_id_)
-    metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_,bahn_id_)
-    metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_,bahn_id_)
+    [seg_euclidean_info, seg_euclidean_distances] = metric2postgresql('euclidean', euclidean_distances, data_all_soll, euclidean_ist, bahn_id_,bahn_id_);
+    [seg_sidtw_info, seg_sidtw_distances] = metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_,bahn_id_);
+    [seg_dtw_info, seg_dtw_distances] = metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_,bahn_id_);
+    [seg_dfd_info, seg_dfd_distances] = metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_,bahn_id_);
+    [seg_lcss_info, seg_lcss_distances] = metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_,bahn_id_);
 
     % Info Tabellen hinzufügen
     table_euclidean_info = [seg_euclidean_info; table_euclidean_info];
@@ -687,91 +709,6 @@ if evaluate_all == true && evaluate_velocity == false
 
 end
 
-% %% Auswertung bestimmter Bahnabschnitte
-% 
-% if evaluate_segmentwise == true && evaluate_velocity == false
-% 
-%     n = abs(segment_first - segment_last) + 1;
-% 
-%     if evaluate_orientation == true
-%         euler_transformation(euler_ist,euler_soll, trafo_euler, trafo_rot)
-%         data_ist_ = data_ist;
-%         data_soll_ = data_soll; 
-%         data_ist = euler_trans;
-%         data_soll = euler_soll;
-%     end
-% 
-%     if segment_first == 0 && segment_last == height(segments_ist) - 1
-%         trajectory_ist = data_ist(1:end,:);
-%         trajectory_soll = data_soll(1:end,:);
-% 
-%     elseif segment_last == height(segments_ist) - 1 && segment_first > 0
-%         trajectory_ist = data_ist(idx_new_seg_ist(segment_first):end,:);
-%         trajectory_soll = data_soll(idx_new_seg_soll(segment_first):end,:);
-% 
-%     elseif segment_first == 0 && segment_last < height(segments_ist) - 1
-%         trajectory_ist = data_ist(1:idx_new_seg_ist(segment_last+1)-1,:);
-%         trajectory_soll = data_soll(1:idx_new_seg_soll(segment_last+1)-1,:);
-% 
-%     elseif segment_first > 0 && segment_first < height(segments_ist) - 2 && segment_last < height(segments_ist) - 1
-% 
-%         trajectory_ist = data_ist(idx_new_seg_ist(segment_first):idx_new_seg_ist(segment_last+1)-1,:);
-%         trajectory_soll = data_soll(idx_new_seg_soll(segment_first):idx_new_seg_soll(segment_last+1)-1,:);
-%     else
-%         error('Die ausgewählten Bahnabschnitte sind in den Daten nicht vorhanden!')
-%     end
-% 
-%     if evaluate_orientation == true
-%         data_ist_trafo = trajectory_ist;
-%         data_ist = data_ist_; data_soll = data_soll_;
-%         clear data_ist_ data_soll_ 
-%     else
-%         trajectory_ist = table2array(trajectory_ist(:,5:7));
-%         trajectory_soll = table2array(trajectory_soll(:,5:7));
-% 
-%         % Koordinatentransformation
-%         coord_transformation(trajectory_ist,trafo_rot, trafo_trans)
-%     end
-% 
-%     % Euklidischer Abstand 
-%     [euclidean_ist,euclidean_distances,~] = distance2curve(data_ist_trafo,trajectory_soll,'linear');
-%     % % SIDTW
-%     [sidtw_distances, ~, ~, ~, sidtw_soll, sidtw_ist, ~, ~, ~] = fkt_selintdtw3d(trajectory_soll,data_ist_trafo,false);
-%     % DTW
-%     [dtw_distances, ~, ~, ~, dtw_soll, dtw_ist, ~, ~, ~, ~] = fkt_dtw3d(trajectory_soll,data_ist_trafo,false);
-%     % Frechet 
-%     fkt_discreteFrechet(trajectory_soll,data_ist_trafo,false);
-%     % LCSS
-%     [~, ~, lcss_distances, ~, ~, lcss_soll, lcss_ist, ~, ~] = fkt_lcss(trajectory_soll,data_ist_trafo,false);
-% 
-%     metric2postgresql('euclidean', euclidean_distances, trajectory_soll, euclidean_ist, bahn_id_)
-%     metric2postgresql('sidtw', sidtw_distances, sidtw_soll, sidtw_ist, bahn_id_)
-%     metric2postgresql('dtw', dtw_distances, dtw_soll, dtw_ist, bahn_id_)
-%     metric2postgresql('dfd', frechet_distances, frechet_soll, frechet_ist, bahn_id_)
-%     metric2postgresql('lcss', lcss_distances, lcss_soll, lcss_ist, bahn_id_)
-% 
-% 
-% 
-%     % Anpassung der Spaltennamen für jede Tabelle
-%     seg_euclidean_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-%     seg_sidtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-%     seg_dtw_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-%     seg_dfd_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-%     seg_lcss_info.Properties.VariableNames = {'bahn_id','min_distances', 'max_distance', 'average_distance', 'standard_deviation'};
-% 
-%     trajectory_info = [seg_euclidean_info(1,:); seg_sidtw_info(1,:); seg_dtw_info(1,:); seg_dfd_info(1,:); seg_lcss_info(1,:)];
-% 
-%     trajectory_info.metrik = {'euclidean'; 'sidtw'; 'dtw'; 'dfd'; 'lcss'};
-% 
-%     clear sidtw_distances sidtw_ist sidtw_soll seg_sidtw_info seg_sidtw_distances
-%     clear dtw_distances dtw_ist dtw_soll seg_dtw_info seg_dtw_distances
-%     clear frechet_distances frechet_ist frechet_soll frechet_path frechet_matrix frechet_dist frechet_av seg_dfd_info seg_dfd_distances
-%     clear lcss_distances lcss_ist lcss_soll seg_lcss_info seg_lcss_distances
-%     %clear euclidean_distances euclidean_ist seg_euclidean_info seg_euclidean_distances
-%     clear data_ist_trafo
-% 
-% end
-
 %% Plotten
 % plots = 1;
 if plots == true
@@ -791,7 +728,7 @@ if plots == true && evaluate_velocity == false && evaluate_orientation == false
     soll = table2array(data_soll(:,5:7));
     
     % Koordinatentrafo für alle Daten 
-    coord_transformation(ist,trafo_rot, trafo_trans)
+    data_ist_trafo = coord_transformation(ist,trafo_rot, trafo_trans);
     ist = data_ist_trafo; 
     clear data_ist_trafo
     

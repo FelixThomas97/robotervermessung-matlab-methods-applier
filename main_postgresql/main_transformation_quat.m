@@ -2,7 +2,7 @@
 clear;
 
 %bahn_id_ = '1738682877';
-bahn_id_ = '1739814275';% Orientierungsänderung ohne Kalibrierungsdatei
+bahn_id_ = '1739274902';% Orientierungsänderung ohne Kalibrierungsdatei
 %bahn_id_ = '1720784405';
 plots = false;              % Plotten der Daten 
 upload_all = false;        % Upload aller Bahnen
@@ -91,7 +91,7 @@ for bahn_id = bahn_ids_to_process'
         data_cal_soll = sortrows(data_cal_soll,'timestamp');
         
         % Positionsdaten für Koordinatentransformation
-        calibration(data_cal_ist,data_cal_soll, plots)
+        [trafo_rot, trafo_trans, ~] = calibration(data_cal_ist,data_cal_soll, plots);
         
         % Extrahieren der Kalibrierungs-Daten für die Orientierung
         tablename_cal = ['robotervermessung.' schema '.bahn_orientation_soll'];
@@ -126,7 +126,7 @@ for bahn_id = bahn_ids_to_process'
         position_ist = table2array(data_ist(:,5:7));
         position_soll = table2array(data_position_soll(:,5:7));
                 
-        coord_transformation(position_ist,trafo_rot,trafo_trans);
+        data_ist_trafo = coord_transformation(position_ist,trafo_rot,trafo_trans);
         
         % Quaternion Transformation
         q_transformed = transformQuaternion(data_ist, data_orientation_soll, q_transform, trafo_rot);
